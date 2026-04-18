@@ -8,8 +8,8 @@ import html
 import os
 import scipy.stats as stats
 from sklearn.manifold import TSNE
+import numpy as np
 import sys
-# sys.path.insert(0, r'c:\Users\User\metabric_project\src')
 from data.quality.QC import run_qc
 from sklearn.decomposition import PCA
 from scipy import stats
