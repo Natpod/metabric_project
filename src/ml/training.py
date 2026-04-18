@@ -102,7 +102,7 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
 
 
      
-    ########### TRAIN-TEST SPLIT, ENCODING, AND SCALING ###########
+    ########### TRAIN-VAL-TEST SPLIT, ENCODING, AND SCALING ###########
     if isinstance(target_col, str): # only one target column is supported for now
         X = df.drop(columns=[target_col])
         y = df[target_col]
@@ -111,16 +111,33 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
         categorical_cols = X.select_dtypes(include=['object', 'boolean']).columns
         numerical_cols = X.select_dtypes(include=['number']).columns
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_holdout, y_train, y_holdout = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42,
+        )
     
     elif isinstance(target_col, list): # multi-target classification path
         X = df.drop(columns=target_col)
         y = df[target_col].copy()
         categorical_cols = X.select_dtypes(include=['object', 'boolean']).columns
         numerical_cols = X.select_dtypes(include=['number']).columns
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        X_train, X_holdout, y_train, y_holdout = train_test_split(
+            X,
+            y,
+            test_size=0.2,
+            random_state=42,
+        )
     else:
         raise TypeError("target_col must be a string or a list of strings")
+
+    X_val, X_test, y_val, y_test = train_test_split(
+        X_holdout,
+        y_holdout,
+        test_size=0.5,
+        random_state=42,
+    )
 
 
     # TO PREVENT DATA LEAKAGE, TRAIN OHE ON TRAINING DATA AND CHOOSE AND TRAIN SCALERS BASED ON TRAINING DATA ONLY, THEN APPLY TRANSFORMATIONS TO BOTH TRAIN AND TEST SETS
@@ -133,6 +150,10 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
         encoded_col_names = encoder.get_feature_names_out(categorical_cols).tolist()
         X_encoded_df = pd.DataFrame(X_encoded, columns=encoded_col_names, index=X_train.index)
         X_train = pd.concat([X_train.drop(columns=categorical_cols), X_encoded_df], axis=1)
+        if X_val is not None:
+            X_encoded_val = encoder.transform(X_val[categorical_cols])
+            X_encoded_val_df = pd.DataFrame(X_encoded_val, columns=encoded_col_names, index=X_val.index)
+            X_val = pd.concat([X_val.drop(columns=categorical_cols), X_encoded_val_df], axis=1)
         if X_test is not None:
             X_encoded_test = encoder.transform(X_test[categorical_cols])
             X_encoded_test_df = pd.DataFrame(X_encoded_test, columns=encoded_col_names, index=X_test.index)
@@ -141,11 +162,21 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
     target_encoders = {}
     if isinstance(y_train, pd.DataFrame):
         y_train = y_train.copy()
+        y_val = y_val.copy() if y_val is not None else None
         y_test = y_test.copy() if y_test is not None else None
         for col in y_train.columns:
             target_encoder = preprocessing.LabelEncoder()
             y_train_col = y_train[col].astype(str)
             y_train[col] = target_encoder.fit_transform(y_train_col)
+
+            if y_val is not None:
+                y_val_col = y_val[col].astype(str)
+                unseen_labels = sorted(set(y_val_col.unique()) - set(target_encoder.classes_))
+                if unseen_labels:
+                    raise ValueError(
+                        f"Target column '{col}' contains labels in the validation split that were not seen during training: {unseen_labels}"
+                    )
+                y_val[col] = target_encoder.transform(y_val_col)
 
             if y_test is not None:
                 y_test_col = y_test[col].astype(str)
@@ -210,6 +241,8 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
         if decision == 'Log1pTransform':
             numeric_transformers[col] = {'type': 'Log1pTransform'}
             X_train[col] = X_train[col].apply(lambda x: np.log1p(x) if pd.notna(x) else x)
+            if X_val is not None:
+                X_val[col] = X_val[col].apply(lambda x: np.log1p(x) if pd.notna(x) else x)
             if X_test is not None:
                 X_test[col] = X_test[col].apply(lambda x: np.log1p(x) if pd.notna(x) else x)
         elif decision == 'MinMaxScaler':
@@ -222,6 +255,8 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
             }
             if max_val > min_val:
                 X_train[col] = (X_train[col] - min_val) / (max_val - min_val)
+                if X_val is not None:
+                    X_val[col] = (X_val[col] - min_val) / (max_val - min_val)
                 if X_test is not None:
                     X_test[col] = (X_test[col] - min_val) / (max_val - min_val)
         elif decision == 'StandardScaler':
@@ -234,6 +269,8 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
             }
             if std > 0:
                 X_train[col] = (X_train[col] - mean) / std
+                if X_val is not None:
+                    X_val[col] = (X_val[col] - mean) / std
                 if X_test is not None:
                     X_test[col] = (X_test[col] - mean) / std
         elif decision == 'RobustScaler':
@@ -250,6 +287,8 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
             }
             if iqr > 0:
                 X_train[col] = (X_train[col] - median) / iqr
+                if X_val is not None:
+                    X_val[col] = (X_val[col] - median) / iqr
                 if X_test is not None:
                     X_test[col] = (X_test[col] - median) / iqr
         else:
@@ -263,12 +302,17 @@ def run_preprocessing(df, target_col, has_duplicates, boolean_cast_columns, outl
         'encoded_feature_names': encoded_col_names,
         'one_hot_encoder': encoder,
         'target_columns': y_train.columns.tolist() if isinstance(y_train, pd.DataFrame) else [target_col],
-        'target_encoders': target_encoders
+        'target_encoders': target_encoders,
+        'split_sizes': {
+            'train': int(len(X_train)),
+            'validation': int(len(X_val)),
+            'test': int(len(X_test)),
+        }
     }
 
-    return X_train, y_train, X_test, y_test, preprocessing_artifacts
+    return X_train, y_train, X_val, y_val, X_test, y_test, preprocessing_artifacts
 
-def run_training_regressor(X_train, y_train, X_test, y_test):
+def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test):
     """Run CV model selection for regression and log evaluation."""
     # This function can be implemented similarly to the multi-target classifier but using regression models and appropriate metrics like R^2, MAE, RMSE, etc.
     cv=5
@@ -335,6 +379,11 @@ def run_training_regressor(X_train, y_train, X_test, y_test):
 
     mlflow.log_param('selected_model', best_model_name)
     mlflow.log_metric(f'selected_model_best_cv_{scoring}', best_cv_score)
+    if X_val is not None and y_val is not None:
+        y_val_pred = best_search.predict(X_val)
+        mlflow.log_metric('val_r2', float(r2_score(y_val, y_val_pred)))
+        mlflow.log_metric('val_mae', float(mean_absolute_error(y_val, y_val_pred)))
+        mlflow.log_metric('val_rmse', float(mean_squared_error(y_val, y_val_pred, squared=False)))
     if X_test is not None and y_test is not None:
         y_pred = best_search.predict(X_test)
         r2 = r2_score(y_test, y_pred)
@@ -361,7 +410,7 @@ def run_training_regressor(X_train, y_train, X_test, y_test):
 
 
 
-def run_training_multitarget_classifier(X_train, y_train, X_test, y_test):
+def run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, y_test):
     """Run CV model selection for multi-target classification and log per-target evaluation."""
     if not isinstance(y_train, pd.DataFrame):
         raise TypeError("y_train must be a DataFrame for multi-target training.")
@@ -460,6 +509,19 @@ def run_training_multitarget_classifier(X_train, y_train, X_test, y_test):
     mlflow.log_metric(f'selected_model_best_cv_{scoring}', best_cv_score)
     mlflow.log_dict(model_summaries, 'model_selection/all_model_summaries.json')
 
+    if X_val is not None and y_val is not None:
+        y_val_pred = pd.DataFrame(best_search.predict(X_val), columns=y_train.columns, index=y_val.index)
+        mlflow.log_metric('val_exact_match_accuracy', float((y_val_pred == y_val).all(axis=1).mean()))
+        val_target_f1_scores = []
+        for target_name in y_train.columns:
+            safe_target_name = target_name.replace(' ', '_')
+            target_accuracy = accuracy_score(y_val[target_name], y_val_pred[target_name])
+            target_f1 = f1_score(y_val[target_name], y_val_pred[target_name], average='weighted')
+            val_target_f1_scores.append(float(target_f1))
+            mlflow.log_metric(f'val_{safe_target_name}_accuracy', float(target_accuracy))
+            mlflow.log_metric(f'val_{safe_target_name}_f1_weighted', float(target_f1))
+        mlflow.log_metric('val_mean_target_f1_weighted', float(np.mean(val_target_f1_scores)))
+
     if X_test is not None and y_test is not None:
         y_pred = pd.DataFrame(best_search.predict(X_test), columns=y_train.columns, index=y_test.index)
         exact_match_accuracy = float((y_pred == y_test).all(axis=1).mean())
@@ -501,6 +563,11 @@ def run_training_multitarget_classifier(X_train, y_train, X_test, y_test):
     mlflow.sklearn.log_model(best_search.best_estimator_, artifact_path=f'models/{best_model_name}')
     return best_search.best_estimator_, model_summaries
 
+
+def run_training_multiclass_classifier(X_train, y_train, X_val, y_val, X_test, y_test):
+    """Train diagnosis targets using the existing one-vs-rest multi-output path."""
+    return run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, y_test)
+
 def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_column, pronostic_target_column):
 
 
@@ -531,7 +598,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     
     mlflow.set_experiment("METABRIC_UC_Plausible_Therapy")
     # preprocess
-    X_train, y_train, X_test, y_test, preprocessing_artifacts = run_preprocessing(
+    X_train, y_train, X_val, y_val, X_test, y_test, preprocessing_artifacts = run_preprocessing(
         df,
         therapeutic_final_targets,
         has_duplicates,
@@ -542,7 +609,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     )
     with mlflow.start_run():
         log_preprocessing_artifacts(preprocessing_artifacts)
-        run_training_multitarget_classifier(X_train, y_train, X_test, y_test)
+        run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, y_test)
 
     
     ###################
@@ -553,7 +620,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     df = pd.read_csv(DATASET_PATH)
 
     # preprocess
-    X_train, y_train, X_test, y_test, preprocessing_artifacts = run_preprocessing(
+    X_train, y_train, X_val, y_val, X_test, y_test, preprocessing_artifacts = run_preprocessing(
         df,
         pronostic_target_column,
         has_duplicates,
@@ -564,7 +631,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     )
     with mlflow.start_run():
         log_preprocessing_artifacts(preprocessing_artifacts)
-        run_training_regressor(X_train, y_train, X_test, y_test)
+        run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test)
 
         
     ###################
@@ -579,7 +646,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     df = pd.concat([df, df_orctree], axis=1).drop(columns=[orctree_target_column])
 
     # preprocess
-    X_train, y_train, X_test, y_test, preprocessing_artifacts = run_preprocessing(
+    X_train, y_train, X_val, y_val, X_test, y_test, preprocessing_artifacts = run_preprocessing(
         df,
         df_orctree.columns.tolist(),
         has_duplicates,
@@ -590,7 +657,7 @@ def main(DATASET_PATH, id_column, therapeutic_target_columns, orctree_target_col
     )
     with mlflow.start_run():
         log_preprocessing_artifacts(preprocessing_artifacts)
-        run_training_multiclass_classifier(X_train, y_train, X_test, y_test)
+        run_training_multiclass_classifier(X_train, y_train, X_val, y_val, X_test, y_test)
 
     return
 
