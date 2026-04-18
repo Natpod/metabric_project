@@ -1,0 +1,6 @@
+./src/data/__pycache__/*
+./src/data/quality/__pycache__/*
+./src/ml/__pycache__/*
+./venv/
+__pycache__/
+./reports/.ipynb_checkpoints/*

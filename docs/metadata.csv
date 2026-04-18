@@ -1,0 +1,35 @@
+Name	Type	Description
+patient_id	object	Patient ID
+age_at_diagnosis	float	Age of the patient at diagnosis time
+cohort	float	Cohort is a group of subjects who share a defining characteristic (It takes a value from 1 to 5)
+er_status_measured_by_ihc	float	To assess if estrogen receptors are expressed on cancer cells by using immune-histochemistry (a dye used in pathology that targets specific antigen, if it is there, it will give a color, it is not there, the tissue on the slide will be colored) (positive/negative)
+lymph_nodes_examined_positive	float	To take samples of the lymph node during the surgery and see if there were involved by the cancer
+mutation_count	float	Number of gene that has relevant mutations
+nottingham_prognostic_index	float	It is used to determine prognosis following surgery for breast cancer. Its value is calculated using three pathological criteria: the size of the tumour; the number of involved lymph nodes; and the grade of the tumour.
+overall_survival_months	float	Duration from the time of the intervention to death
+tumor_size	float	Tumor size measured by imaging techniques
+tumor_stage	float	Stage of the cancer based on the involvement of surrounding structures,
+chemotherapy	int	Whether or not the patient had chemotherapy as a treatment (yes/no)
+neoplasm_histologic_grade	int	Determined by pathology by looking the nature of the cells, do they look aggressive or not (It takes a value from 1 to 3)
+hormone_therapy	int	Whether or not the patient had hormonal as a treatment (yes/no)
+radio_therapy	int	Whether or not the patient had radio as a treatment (yes/no)
+death_from_cancer	int	lymph nodes and distant spread Wether the patient's death was due to cancer or not (yes/no)
+geo_location_id	object	Identification of the geolocation of the patient. It takes values from 1 to 100
+ethnicity	object	European, Asia, United State or Africa
+type_of_breast_surgery	object	1-MASTECTOMY (surgery to remove all breast tissue from a breast) or 2-BREAST CONSERVING (only the part of the breast that has cancer is removed)
+cancer_type	object	Breast cancer types: 1- Breast Cancer or 2- Breast Sarcoma
+cancer_type_detailed	object	Detailed Breast cancer types: 1- Breast Invasive Ductal Carcinoma 2-Breast Mixed Ductal and Lobular Carcinoma 3- Breast Invasive Lobular Carcinoma 4- Breast Invasive Mixed Mucinous Carcinoma 5- Metaplastic Breast Cancer
+cellularity	object	Cancer cellularity post chemotherapy, which refers to the amount of tumor cells in the specimen and their arrangement into clusters
+pam50_+_claudin-low_subtype	object	Pam 50: is a tumor profiling test that helps show whether some estrogen receptor-positive (ER-positive), HER2-negative breast cancers are likely to metastasize.
+er_status	object	Cancer cells are positive or negative for estrogen receptors
+her2_status_measured_by_snp6	object	To assess if the cancer positive for HER2 or not by using advance molecular techniques (Type of next generation sequencing)
+her2_status	object	Whether the cancer is positive or negative for HER2
+tumor_other_histologic_subtype	object	Type of the cancer based on microscopic examination of the cancer tissue (It takes a value of 'Ductal/NST', 'Mixed', 'Lobular', 'Tubular/ cribriform','Mucinous', 'Medullary', 'Other', 'Metaplastic')
+inferred_menopausal_state	object	Whether the patient is is post menopausal or not (post/pre)
+integrative_cluster	object	Molecular subtype of the cancer based on some gene expression (It takes a value from '4ER+', '3', '9', '7', '4ER-', '5', '8', '10', '1', '2', '6')
+primary_tumor_laterality	object	Whether it is involving the right breast or the left breast
+oncotree_code	object	The OncoTree is an open-source ontology that was developed at Memorial Sloan Kettering Cancer Center (MSK) for standardizing cancer type diagnosis from a clinical perspective by assigning each diagnosis a unique OncoTree code.
+overall_survival	object	Target variable wether the patient is alive of dead.
+pr_status	object	Cancer cells are positive or negative for progesterone receptors
+3-gene_classifier_subtype	object	Three Gene classifier subtype It takes a value from 'ER-/HER2-','ER+/HER2- High Prolif', nan, 'ER+/HER2- Low Prolif','HER2+'
+... (mRNA z-score biomarkers)

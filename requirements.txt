@@ -1,0 +1,31 @@
+# Core scientific libraries
+pandas
+numpy
+scipy
+
+# Plotting and visualization
+matplotlib
+seaborn
+
+# Machine learning
+scikit-learn
+xgboost
+imblearn
+
+# MLflow for experiment tracking
+mlflow
+
+# SHAP for explainability
+shap
+
+# For argument parsing (standard library, but listed for clarity)
+# argparse
+
+# If using Jupyter notebooks for reports
+# jupyter
+
+# If using base64, html, io, os (all standard library)
+# base64
+# html
+# io
+# os
