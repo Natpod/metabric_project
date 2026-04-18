@@ -302,40 +302,95 @@ def run_bias_analysis(df, target_columns, report, bias_columns = ['age_at_diagno
         report.add_stage("Bias Analysis", bias_logs)
 
 
+def build_multicategory_therapeutic_target(df, surgery_dummy_columns, therapy_columns):
+    """Build a readable multi-label target from surgery dummies and therapy flags."""
+
+    def is_positive(value):
+        if pd.isna(value):
+            return False
+        if isinstance(value, (bool, np.bool_)):
+            return bool(value)
+        return str(value).strip().lower() in {'yes', 'positive', '+', '1', 'true'}
+
+    def label_row(row):
+        active_labels = [
+            column.replace('breast_surgery_', '')
+            for column in surgery_dummy_columns
+            if row[column] == 1
+        ]
+        active_labels.extend(
+            column for column in therapy_columns if is_positive(row[column])
+        )
+        return '|'.join(active_labels) if active_labels else 'none'
+
+    return df.apply(label_row, axis=1)
+
+
+def resolve_processed_non_gene_columns(df, non_gene_expression_columns):
+    """Map raw non-gene columns to the columns available after preprocessing."""
+    resolved_columns = []
+    for column in non_gene_expression_columns:
+        if column in df.columns:
+            resolved_columns.append(column)
+            continue
+
+        encoded_matches = [
+            candidate for candidate in df.columns
+            if candidate.startswith(f"{column}_")
+        ]
+        resolved_columns.extend(encoded_matches)
+
+    return list(dict.fromkeys(resolved_columns))
+
+
 def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnostic_targets, pronostic_targets, main_file_path, output_report_path=None):
     """Run exploratory data analysis on the dataset."""
 
     df = pd.read_csv(main_file_path)
     report = EDAHTMLReport(output_report_path) if output_report_path else None
     visualize_distributions(df, df.columns, report)
-    
-    df_p = run_preprocessing(
-        df,
-        id_column,
-        *run_qc(id_column, main_file_path, do_report=False, show_plots=False),
-    )
-    # therapeutic columns
 
+    analysis_df = df.copy()
     for col in therapeutic_targets:
-        if col != "type_of_breast_surgery":
-            df_p[col] = df_p[col].astype(str).str.strip().str.lower().map(
+        if col != "type_of_breast_surgery" and col in analysis_df.columns:
+            analysis_df[col] = analysis_df[col].astype(str).str.strip().str.lower().map(
                 lambda x: pd.NA if pd.isna(x) else x in {'yes', 'positive', '+', '1'}
             ).astype('boolean')
 
-    df_surgery = pd.get_dummies(df["type_of_breast_surgery"], prefix="breast_surgery")
-    df = pd.concat([df, df_surgery], axis=1)
+    df_surgery = pd.get_dummies(analysis_df["type_of_breast_surgery"], prefix="breast_surgery")
+    analysis_df = pd.concat([analysis_df, df_surgery], axis=1)
     thcolumns = [col for col in therapeutic_targets if col != "type_of_breast_surgery"]
-    
-    df["multicategory_therapeutic_target"] = pd.from_dummies(df[df_surgery.columns.tolist() + thcolumns].astype(str).agg(''.join, axis=1), prefix="multicategory_target")
-    run_bias_analysis(df, "multicategory_therapeutic_target", report)
+    analysis_df["multicategory_therapeutic_target"] = build_multicategory_therapeutic_target(
+        analysis_df,
+        df_surgery.columns.tolist(),
+        thcolumns,
+    )
 
-    df_non_gene = df[non_gene_expression_columns]
-    df_gene = pd.concat([df.drop(columns=non_gene_expression_columns), df["multicategory_therapeutic_target"]], axis=1)
+    df_p = run_preprocessing(
+        analysis_df.copy(),
+        id_column,
+        *run_qc(id_column, main_file_path, do_report=False, show_plots=False),
+    )
+
+    df_p["multicategory_therapeutic_target"] = analysis_df.loc[
+        df_p.index,
+        "multicategory_therapeutic_target",
+    ]
+    run_bias_analysis(analysis_df, ["multicategory_therapeutic_target"], report)
+
+    processed_non_gene_columns = resolve_processed_non_gene_columns(df_p, non_gene_expression_columns)
+    if "multicategory_therapeutic_target" not in processed_non_gene_columns:
+        processed_non_gene_columns.append("multicategory_therapeutic_target")
+
+    df_non_gene = df_p[processed_non_gene_columns]
+    df_gene = df_p.drop(columns=processed_non_gene_columns, errors='ignore')
+    if "multicategory_therapeutic_target" not in df_gene.columns:
+        df_gene = pd.concat([df_gene, df_p[["multicategory_therapeutic_target"]]], axis=1)
 
     run_correlation_analysis(df_non_gene, df_non_gene.columns, "multicategory_therapeutic_target", report)
     run_correlation_analysis(df_gene, df_gene.columns, "multicategory_therapeutic_target", report)
-    run_pca_visualization(df, "multicategory_therapeutic_target", report)
-    run_tsne_visualization(df, "multicategory_therapeutic_target", report)
+    run_pca_visualization(df_p, "multicategory_therapeutic_target", report)
+    tsne_visualization(df_p, "multicategory_therapeutic_target", report)
 
 
     # diagnostic targets
@@ -346,7 +401,7 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     if report:
         report.generate_report()
 
-if "__init__" == __name__:
+if __name__ == "__main__":
     argv = argparse.ArgumentParser()
     argv.add_argument("--id_column", type=str, required=True, help="Name of the ID column in the dataset")
     argv.add_argument("--main_file_path", type=str, required=True, help="Path to the main CSV file for EDA")
