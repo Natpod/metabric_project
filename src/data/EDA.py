@@ -58,6 +58,12 @@ class EDAHTMLReport:
 
         self.add_section(title, "".join(content_parts))
 
+
+def get_numeric_feature_columns(df):
+    """Return numeric columns excluding boolean dtypes."""
+    numeric_cols = df.select_dtypes(include='number').columns.tolist()
+    return [col for col in numeric_cols if not pd.api.types.is_bool_dtype(df[col])]
+
 def run_preprocessing(df, id_column,has_duplicates,boolean_cast_columns,outlier_columns, high_cardinality_columns):
     """Run data preprocessing steps on the dataset."""
     
@@ -75,6 +81,8 @@ def run_preprocessing(df, id_column,has_duplicates,boolean_cast_columns,outlier_
     
     # - Handle outliers (simple example using IQR)
     for col in outlier_columns:
+        if pd.api.types.is_bool_dtype(df[col]):
+            continue
         Q1 = df[col].quantile(0.25)
         Q3 = df[col].quantile(0.75)
         IQR = Q3 - Q1
@@ -107,7 +115,7 @@ def run_preprocessing(df, id_column,has_duplicates,boolean_cast_columns,outlier_
     # - approximately normal: StandardScaler
     # - heavy tails / non-normal: RobustScaler
     decision_scalers = {}
-    numeric_cols = df.select_dtypes(include='number').columns
+    numeric_cols = get_numeric_feature_columns(df)
     for col in numeric_cols:
         series = df[col].dropna()
 
@@ -173,7 +181,7 @@ def run_preprocessing(df, id_column,has_duplicates,boolean_cast_columns,outlier_
 def run_pca_visualization(df, target_col, report=None):
     """Generate PCA visualization for the dataset."""
 
-    numeric_cols = df.select_dtypes(include='number').columns
+    numeric_cols = get_numeric_feature_columns(df)
     pca = PCA(n_components=2, random_state=42)
     pca_results = pca.fit_transform(df[numeric_cols].fillna(0))
 
@@ -191,7 +199,7 @@ def run_pca_visualization(df, target_col, report=None):
     
 def tsne_visualization(df, target_col, report=None):
     """Generate t-SNE visualization for the dataset."""
-    numeric_cols = df.select_dtypes(include='number').columns
+    numeric_cols = get_numeric_feature_columns(df)
     tsne = TSNE(n_components=2, random_state=42)
     tsne_results = tsne.fit_transform(df[numeric_cols].fillna(0))
 
@@ -209,7 +217,7 @@ def tsne_visualization(df, target_col, report=None):
 
 def run_correlation_analysis(df, columns, target, report=None):
     """Generate correlation heatmap for numeric features."""
-    numeric_cols = df.select_dtypes(include='number').columns
+    numeric_cols = get_numeric_feature_columns(df)
     if len(numeric_cols) < 2:
         print("Not enough numeric columns for correlation analysis.")
         return
@@ -232,7 +240,7 @@ def run_correlation_analysis(df, columns, target, report=None):
 def visualize_distributions(df, columns, report=None):
     """Visualize distributions of numeric features and categorical features frequencies"""
 
-    numeric_cols = df.select_dtypes(include='number').columns
+    numeric_cols = get_numeric_feature_columns(df)
     for col in numeric_cols:
         fig, ax = plt.subplots()
         sns.histplot(df[col].dropna(), kde=True, ax=ax)
