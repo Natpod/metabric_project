@@ -3,6 +3,7 @@ from data.EDA import run_eda
 from ml.training import main as training_main
 from ml.predict import main as predict_main
 import argparse
+import pandas as pd
 
 therapeutic_targets = ['chemotherapy','hormone_therapy','radio_therapy','type_of_breast_surgery']
 prognosis_targets = ['death_from_cancer','overall_survival_months']
@@ -28,11 +29,22 @@ def ml_cicle(patient_id_column, dataset_path, therapeutic_targets, prognosis_tar
     # )
     
     # Run EDA
-    run_eda(patient_id_column, non_gene_expression_columns, 
-    therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
+    # run_eda(patient_id_column, non_gene_expression_columns, 
+    # therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
 
-    training_main(dataset_path, therapeutic_targets, "overall_survival_months", "oncotree_code")
+    # TRAINING
+    # Train models for each target and save results
+    training_main(
+        dataset_path,
+        patient_id_column,
+        non_gene_expression_columns,
+        therapeutic_targets,
+        "oncotree_code",
+        "overall_survival_months",
+    )
 
+
+    # INFERENCE
     # Prepare data for inference and make predictions
     possible_experiments_inference = {"METABRIC_UC_Plausible_Therapy": dataset_path_inference_therapy,
                                       "METABRIC_UC_Plausible_Survival_Time": dataset_path_inference_survival,
