@@ -1,0 +1,12 @@
+{
+  "best_params": {
+    "estimator__class_weight": null,
+    "estimator__max_depth": 10,
+    "estimator__min_samples_leaf": 2,
+    "estimator__min_samples_split": 5,
+    "estimator__n_estimators": 200
+  },
+  "best_cv_score": 0.6884077852487314,
+  "scoring": "f1_samples",
+  "cv": 5
+}

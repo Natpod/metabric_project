@@ -1,0 +1,11 @@
+{
+  "best_params": {
+    "estimator__C": 1,
+    "estimator__class_weight": null,
+    "estimator__gamma": "auto",
+    "estimator__kernel": "rbf"
+  },
+  "best_cv_score": 0.6619152322804073,
+  "scoring": "f1_samples",
+  "cv": 5
+}

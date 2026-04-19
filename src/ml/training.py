@@ -1003,14 +1003,14 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
                 'min_samples_leaf': [1, 2]
             }
         },
-        'svm': {
-            'estimator': SVR(random_state=42),
-            'param_grid': {
-                'C': [0.1, 1, 10],
-                'kernel': ['linear', 'rbf'],
-                'gamma': ['scale', 'auto']
-            }
-        }
+        # 'svm': {
+        #     'estimator': SVR(random_state=42),
+        #     'param_grid': {
+        #         'C': [0.1, 1, 10],
+        #         'kernel': ['linear', 'rbf'],
+        #         'gamma': ['scale', 'auto']
+        #     }
+        # }
     }
     best_model_name = None
     best_search = None
@@ -1111,18 +1111,18 @@ def run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, 
                 'estimator__class_weight': [None, 'balanced']
             }
         },
-        'svm': {
-            'estimator': MultiOutputClassifier(
-                SVC(random_state=42),
-                n_jobs=-1
-            ),
-            'param_grid': {
-                'estimator__C': [0.1, 1, 10],
-                'estimator__kernel': ['linear', 'rbf'],
-                'estimator__gamma': ['scale', 'auto'],
-                'estimator__class_weight': [None, 'balanced']
-            }
-        }
+        # 'svm': {
+        #     'estimator': MultiOutputClassifier(
+        #         SVC(random_state=42),
+        #         n_jobs=-1
+        #     ),
+        #     'param_grid': {
+        #         'estimator__C': [0.1, 1, 10],
+        #         'estimator__kernel': ['linear', 'rbf'],
+        #         'estimator__gamma': ['scale', 'auto'],
+        #         'estimator__class_weight': [None, 'balanced']
+        #     }
+        # }
     }
 
     if XGBClassifier is not None:
@@ -1287,18 +1287,18 @@ def run_training_multilabel_classifier(X_train, y_train, X_val, y_val, X_test, y
                 'estimator__class_weight': [None, 'balanced']
             }
         },
-        'svm': {
-            'estimator': OneVsRestClassifier(
-                SVC(random_state=42),
-                n_jobs=-1
-            ),
-            'param_grid': {
-                'estimator__C': [0.1, 1, 10],
-                'estimator__kernel': ['linear', 'rbf'],
-                'estimator__gamma': ['scale', 'auto'],
-                'estimator__class_weight': [None, 'balanced']
-            }
-        }
+        # 'svm': {
+        #     'estimator': OneVsRestClassifier(
+        #         SVC(random_state=42),
+        #         n_jobs=-1
+        #     ),
+        #     'param_grid': {
+        #         'estimator__C': [0.1, 1, 10],
+        #         'estimator__kernel': ['linear', 'rbf'],
+        #         'estimator__gamma': ['scale', 'auto'],
+        #         'estimator__class_weight': [None, 'balanced']
+        #     }
+        # }
     }
 
     if XGBClassifier is not None:
