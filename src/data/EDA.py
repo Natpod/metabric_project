@@ -391,7 +391,7 @@ def visualize_distributions(df, id_column, columns, report=None):
             ax.set_title(f"Distribution of {col}")
             if report:
                 report.add_stage(f"Distribution of {col}", [], fig)
-        plt.close(fig)
+            plt.close(fig)
     categorical_cols = df.select_dtypes(include='object').columns
     for col in categorical_cols:
         if col != id_column:
@@ -605,7 +605,7 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     df_p = run_preprocessing(
         analysis_df.copy(),
         id_column,
-        output_qc
+        *output_qc,
     )
     df_p["multicategory_therapeutic_target"] = analysis_df.loc[
         df_p.index,
@@ -648,13 +648,14 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
 
 
     # CASO DE USO 2 prognostic targets
+    print("Exploracion de meses de supervivencia en pacientes que murieron por cancer")
     df = pd.read_csv(main_file_path)
     df = df[df['overall_survival'] == 0] # filter to only patients who died to ensure we are modeling survival time and not a mix of survival time and censoring, which would be a different use case with different target variable definition and modeling approach
 
     df_p = run_preprocessing(
         df.copy(),
         id_column,
-        output_qc
+        *output_qc,
     )
     run_correlation_analysis(df_non_gene, df_non_gene.columns, pronostic_targets[0], report)
     run_correlation_analysis(df_gene, df_gene.columns, pronostic_targets[0], report)
@@ -669,12 +670,12 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
 
     
     df = pd.read_csv(main_file_path)
-    df = df[df['overall_survival'] == 0] # filter to only patients who died to ensure we are modeling survival time and not a mix of survival time and censoring, which would be a different use case with different target variable definition and modeling approach
+    print("Exploracion de diagnostico de pacientes")
 
     df_p = run_preprocessing(
         df.copy(),
         id_column,
-        output_qc
+        *output_qc,
     )
 
     mutual_info_df = df_p.copy()

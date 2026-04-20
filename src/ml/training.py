@@ -644,6 +644,11 @@ def log_pipeline_shap_artifacts(best_estimator, X, artifact_key, target_names=No
             mlflow.log_param(f'{artifact_key}_shap_skipped', True)
 
 
+def compute_rmse(y_true, y_pred):
+    """Compute RMSE without relying on version-specific sklearn keyword arguments."""
+    return float(np.sqrt(mean_squared_error(y_true, y_pred)))
+
+
 def run_leave_one_cohort_out_experiment(
     df,
     target_col,
@@ -1140,7 +1145,7 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
         val_metrics = {
             'r2': float(r2_score(y_val, y_val_pred)),
             'mae': float(mean_absolute_error(y_val, y_val_pred)),
-            'rmse': float(mean_squared_error(y_val, y_val_pred, squared=False))
+            'rmse': compute_rmse(y_val, y_val_pred)
         }
         mlflow.log_metric('val_r2', val_metrics['r2'])
         mlflow.log_metric('val_mae', val_metrics['mae'])
@@ -1149,7 +1154,7 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
         y_pred = best_search.predict(X_test)
         r2 = r2_score(y_test, y_pred)
         mae = mean_absolute_error(y_test, y_pred)
-        rmse = mean_squared_error(y_test, y_pred, squared=False)
+        rmse = compute_rmse(y_test, y_pred)
         test_metrics = {
             'r2': float(r2),
             'mae': float(mae),
@@ -1529,29 +1534,29 @@ def main(DATASET_PATH, id_column, non_gene_cols, therapeutic_target_columns, orc
     df = df[(df['death_from_cancer'] != 'Died of Other Causes')| (df["overall_survival"]==1)] # ensure we are modeling breast cancer specific survival and not overall survival, which would be a different use case with different target variable definition and modeling approach
     # Run preprocessing
     # normalize therapeutic targets for true multi-target classification
-    for col in therapeutic_target_columns:
-        if col in df.columns and col != "type_of_breast_surgery":
-            df[col] = df[col].astype(str).str.strip().str.lower().map(
-                lambda x: pd.NA if pd.isna(x) else x in {'yes', 'positive', '+', '1'}
-            ).astype('boolean')
-    df_surgery = pd.get_dummies(df["type_of_breast_surgery"], prefix="breast_surgery")
-    df = pd.concat([df, df_surgery], axis=1).drop(columns=["type_of_breast_surgery"])
-    therapeutic_final_targets = list(df_surgery.columns) + [col for col in therapeutic_target_columns if col != "type_of_breast_surgery"]
-    run_leave_one_cohort_out_experiment(
-        df=df,
-        target_col=therapeutic_final_targets,
-        task_type='multilabel_classification',
-        experiment_name='METABRIC_UC_Plausible_Therapy',
-        run_name_prefix='therapy_multilabel',
-        training_fn=run_training_multilabel_classifier,
-        dataset_path=DATASET_PATH,
-        gene_expr_cols=gene_cols,
-        has_duplicates=has_duplicates,
-        boolean_cast_columns=boolean_cast_columns,
-        outlier_columns=outlier_columns,
-        high_cardinality_columns=high_cardinality_columns,
-        id_column=id_column,
-    )
+    # for col in therapeutic_target_columns:
+    #     if col in df.columns and col != "type_of_breast_surgery":
+    #         df[col] = df[col].astype(str).str.strip().str.lower().map(
+    #             lambda x: pd.NA if pd.isna(x) else x in {'yes', 'positive', '+', '1'}
+    #         ).astype('boolean')
+    # df_surgery = pd.get_dummies(df["type_of_breast_surgery"], prefix="breast_surgery")
+    # df = pd.concat([df, df_surgery], axis=1).drop(columns=["type_of_breast_surgery"])
+    # therapeutic_final_targets = list(df_surgery.columns) + [col for col in therapeutic_target_columns if col != "type_of_breast_surgery"]
+    # run_leave_one_cohort_out_experiment(
+    #     df=df,
+    #     target_col=therapeutic_final_targets,
+    #     task_type='multilabel_classification',
+    #     experiment_name='METABRIC_UC_Plausible_Therapy',
+    #     run_name_prefix='therapy_multilabel',
+    #     training_fn=run_training_multilabel_classifier,
+    #     dataset_path=DATASET_PATH,
+    #     gene_expr_cols=gene_cols,
+    #     has_duplicates=has_duplicates,
+    #     boolean_cast_columns=boolean_cast_columns,
+    #     outlier_columns=outlier_columns,
+    #     high_cardinality_columns=high_cardinality_columns,
+    #     id_column=id_column,
+    # )
 
     
     ###################

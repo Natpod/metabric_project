@@ -4,6 +4,8 @@ from ml.training import main as training_main
 from ml.predict import main as predict_main
 import argparse
 import pandas as pd
+from ml.get_registered_models import get_all_runs
+from mlflow.tracking import MlflowClient
 
 therapeutic_targets = ['chemotherapy','hormone_therapy','radio_therapy','type_of_breast_surgery']
 prognosis_targets = ['death_from_cancer','overall_survival_months']
@@ -29,8 +31,8 @@ def ml_cicle(patient_id_column, dataset_path, therapeutic_targets, prognosis_tar
     # )
     
     # Run EDA
-    # run_eda(patient_id_column, non_gene_expression_columns, 
-    # therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
+    run_eda(patient_id_column, non_gene_expression_columns, 
+    therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
 
     # TRAINING
     # Train models for each target and save results
@@ -43,19 +45,22 @@ def ml_cicle(patient_id_column, dataset_path, therapeutic_targets, prognosis_tar
         "overall_survival_months",
     )
 
+    runs = get_all_runs(csv_path="./reports/training_runs.csv")
+
+    print(f"Total runs retrieved: {len(runs)}")
 
     # INFERENCE
     # Prepare data for inference and make predictions
-    possible_experiments_inference = {"METABRIC_UC_Plausible_Therapy": dataset_path_inference_therapy,
-                                      "METABRIC_UC_Plausible_Survival_Time": dataset_path_inference_survival,
-                                      "METABRIC_UC_Plausible_Diagnosis": dataset_path_inference_diagnosis}
+    # possible_experiments_inference = {"METABRIC_UC_Plausible_Therapy": dataset_path_inference_therapy,
+    #                                   "METABRIC_UC_Plausible_Survival_Time": dataset_path_inference_survival,
+    #                                   "METABRIC_UC_Plausible_Diagnosis": dataset_path_inference_diagnosis}
     
-    for experiment_name, dataset_path in possible_experiments_inference.items():
-        predictions, shap_values = predict_main(dataset_path, experiment_name)
-        predictions = pd.DataFrame(predictions, columns=[f"{experiment_name}_prediction"], index=pd.read_csv(dataset_path).index)
-        shap_values_df = pd.DataFrame(shap_values.values, columns=[f"{experiment_name}_shap_{i}" for i in range(shap_values.values.shape[1])], index=pd.read_csv(dataset_path).index)
-        results_df = pd.concat([predictions, shap_values_df], axis=1)
-        results_df.to_csv(f"./data_inference_test/output/{experiment_name}_predictions_shap.csv", index=False)
+    # for experiment_name, dataset_path in possible_experiments_inference.items():
+    #     predictions, shap_values = predict_main(dataset_path, experiment_name)
+    #     predictions = pd.DataFrame(predictions, columns=[f"{experiment_name}_prediction"], index=pd.read_csv(dataset_path).index)
+    #     shap_values_df = pd.DataFrame(shap_values.values, columns=[f"{experiment_name}_shap_{i}" for i in range(shap_values.values.shape[1])], index=pd.read_csv(dataset_path).index)
+    #     results_df = pd.concat([predictions, shap_values_df], axis=1)
+    #     results_df.to_csv(f"./data_inference_test/output/{experiment_name}_predictions_shap.csv", index=False)
 
 if __name__ == "__main__":
     argv = argparse.ArgumentParser()
