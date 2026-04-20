@@ -362,7 +362,6 @@ def run_gene_expression_heatmap_and_clustermap(df, target=None, report=None, max
             cohort_lut = dict(zip(unique_cohorts, cohort_palette))
             col_colors_dict['Cohort'] = df['cohort'].astype(str).map(cohort_lut)
         if col_colors_dict:
-            import pandas as pd
             col_colors = pd.DataFrame(col_colors_dict)
 
     cluster_grid = sns.clustermap(
@@ -620,8 +619,9 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     if "multicategory_therapeutic_target" not in processed_non_gene_columns:
         processed_non_gene_columns.append("multicategory_therapeutic_target")
 
-    df_non_gene = df_p[processed_non_gene_columns]
-    df_gene = df_p.drop(columns=processed_non_gene_columns, errors='ignore')
+    selected_non_gene_columns = [col for col in processed_non_gene_columns if col in df_p.columns]
+    df_non_gene = df_p[selected_non_gene_columns]
+    df_gene = df_p.drop(columns=selected_non_gene_columns, errors='ignore')
     if "multicategory_therapeutic_target" not in df_gene.columns:
         df_gene = pd.concat([df_gene, df_p[["multicategory_therapeutic_target"]]], axis=1)
 
@@ -657,6 +657,17 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
         id_column,
         *output_qc,
     )
+    
+    selected_non_gene_columns = [col for col in processed_non_gene_columns if col in df_p.columns]
+    df_non_gene = df_p[selected_non_gene_columns]
+    df_gene = df_p.drop(columns=selected_non_gene_columns, errors='ignore')
+    mutual_info_df = df_p.copy()
+    mutual_target_columns = []
+    for target in therapeutic_targets:
+        if target in analysis_df.columns and target not in mutual_info_df.columns:
+            mutual_info_df[target] = analysis_df.loc[mutual_info_df.index, target]
+        if target in mutual_info_df.columns and target not in mutual_target_columns:
+            mutual_target_columns.append(target)
     run_correlation_analysis(df_non_gene, df_non_gene.columns, pronostic_targets[0], report)
     run_correlation_analysis(df_gene, df_gene.columns, pronostic_targets[0], report)
     run_gene_expression_heatmap_and_clustermap(df_gene, pronostic_targets[0], report)
@@ -678,9 +689,12 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
         *output_qc,
     )
 
+    selected_non_gene_columns = [col for col in processed_non_gene_columns if col in df_p.columns]
+    df_non_gene = df_p[selected_non_gene_columns]
+    df_gene = df_p.drop(columns=selected_non_gene_columns, errors='ignore')
     mutual_info_df = df_p.copy()
     mutual_target_columns = []
-    for target in diagnostic_targets:
+    for target in therapeutic_targets:
         if target in analysis_df.columns and target not in mutual_info_df.columns:
             mutual_info_df[target] = analysis_df.loc[mutual_info_df.index, target]
         if target in mutual_info_df.columns and target not in mutual_target_columns:

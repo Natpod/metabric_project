@@ -31,8 +31,8 @@ def ml_cicle(patient_id_column, dataset_path, therapeutic_targets, prognosis_tar
     # )
     
     # Run EDA
-    run_eda(patient_id_column, non_gene_expression_columns, 
-    therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
+    # run_eda(patient_id_column, non_gene_expression_columns, 
+    # therapeutic_targets, diagnosis_targets, prognosis_targets, dataset_path, "./reports/eda_report.html")
 
     # TRAINING
     # Train models for each target and save results
