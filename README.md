@@ -138,6 +138,21 @@ For each use case, the current training code follows this sequence:
 
 This workflow is the core methodological choice of the repository, because it explicitly tests whether learned patterns transfer across cohorts rather than only across random patients.
 
+### Gene-expression column treatment
+`gene_expr_cols` are handled differently from ordinary clinical numeric fields because they are treated as molecular signal rather than generic tabular measurements.
+
+In the current preprocessing code, gene-expression columns are processed as follows:
+
+1. They are defined as every column not listed in the configured non-gene feature list.
+2. They are coerced to numeric values, including cleanup of bracketed string representations such as scientific-notation strings stored as text.
+3. Low-magnitude expression values are thresholded elementwise so that values with `abs(value) <= 1.5` are replaced with `0`.
+4. In the Leave-One-Cohort-Out workflow, this thresholding happens once per outer split before inner CV begins, so it is not a fold-local feature-selection step.
+5. Variance-based feature selection is separate and occurs inside the model-selection pipeline through `VarianceThreshold` during inner CV.
+6. In the cohort-aware path, batch correction is applied only to outer-train gene-expression columns by centering each training cohort to the global outer-train mean. The held-out cohort is not batch-corrected.
+7. Gene-expression columns are excluded from the scaler-selection heuristics used for other numeric features. In practice they are carried forward without StandardScaler, MinMaxScaler, RobustScaler, or log-scaling decisions.
+
+The important implication is that gene-expression preprocessing is partly split-aware but not entirely CV-local: expression thresholding is fixed at the outer-split level, while variance filtering is learned again inside each inner fold.
+
 ### Current entrypoint behavior
 `src/main.py` currently calls training for all three use cases and then runs inference on the prepared CSV files under `data/inference_test/input/`. The QC and EDA calls are present in the entrypoint but commented out, so they are available in the codebase even if they are not executed by default in the current script.
 

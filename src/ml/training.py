@@ -1,12 +1,14 @@
 import sklearn.preprocessing as preprocessing
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, f1_score
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import accuracy_score, classification_report, f1_score, mean_absolute_error, mean_squared_error, r2_score
 from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.feature_selection import VarianceThreshold
 from sklearn.svm import SVC
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import mlflow
@@ -337,6 +339,23 @@ def apply_train_only_batch_correction(X_train, train_cohorts, gene_expr_cols):
     return corrected, batch_metadata
 
 
+def coerce_gene_expression_columns(df, gene_expr_cols):
+    """Parse gene-expression columns as numeric, including bracketed scientific-notation strings."""
+    for col in gene_expr_cols:
+        if col not in df.columns:
+            continue
+        cleaned = (
+            df[col]
+            .astype('string')
+            .str.replace('[', '', regex=False)
+            .str.replace(']', '', regex=False)
+            .str.strip()
+        )
+        df[col] = pd.to_numeric(cleaned, errors='coerce')
+
+    return df
+
+
 def preprocess_outer_split(
     train_df,
     test_df,
@@ -367,6 +386,9 @@ def preprocess_outer_split(
                 lambda value: pd.NA if pd.isna(value) else value in {'positive', '+'}
             ).astype('boolean')
         cast_true_false_categorical_columns(dataset)
+
+    train_df = coerce_gene_expression_columns(train_df, gene_expr_cols)
+    test_df = coerce_gene_expression_columns(test_df, gene_expr_cols)
 
     clip_numeric_outliers(train_df, test_df, outlier_columns)
 
@@ -426,6 +448,12 @@ def preprocess_outer_split(
     numeric_transformers = {}
     numeric_cols_after_encoding = get_numeric_feature_columns(X_train)
     for col in numeric_cols_after_encoding:
+
+        if col in gene_expr_cols:
+            decision_scalers[col] = 'GeneExpression'
+            print(f"Column: {col}, gene expression column -> GeneExpression")
+            continue
+
         series = X_train[col].dropna()
         if series.empty:
             decision_scalers[col] = 'NoScaling'
@@ -536,13 +564,80 @@ def get_variance_selected_frame(best_estimator, X):
     return pd.DataFrame(selected_array, columns=selected_feature_names, index=X.index)
 
 
-def log_pipeline_shap_artifacts(best_estimator, X, artifact_key):
-    """Best-effort SHAP logging for pipelines with an explicit variance-selection step."""
+def resolve_shap_target_estimators(model, target_names=None):
+    """Return fitted estimators to explain together with target-aware metadata."""
+    if isinstance(model, OneVsRestClassifier):
+        if not hasattr(model, 'estimators_') or len(model.estimators_) == 0:
+            raise ValueError('OneVsRestClassifier has no fitted estimators available for SHAP logging.')
+        resolved_names = target_names or [f'label_{index}' for index in range(len(model.estimators_))]
+        return [
+            {
+                'name': resolved_names[index] if index < len(resolved_names) else f'label_{index}',
+                'estimator': estimator,
+                'metadata': {
+                    'wrapper_type': 'OneVsRestClassifier',
+                    'explained_submodel_index': index,
+                },
+            }
+            for index, estimator in enumerate(model.estimators_)
+        ]
+
+    if isinstance(model, MultiOutputClassifier):
+        if not hasattr(model, 'estimators_') or len(model.estimators_) == 0:
+            raise ValueError('MultiOutputClassifier has no fitted estimators available for SHAP logging.')
+        resolved_names = target_names or [f'target_{index}' for index in range(len(model.estimators_))]
+        return [
+            {
+                'name': resolved_names[index] if index < len(resolved_names) else f'target_{index}',
+                'estimator': estimator,
+                'metadata': {
+                    'wrapper_type': 'MultiOutputClassifier',
+                    'explained_submodel_index': index,
+                },
+            }
+            for index, estimator in enumerate(model.estimators_)
+        ]
+
+    default_name = target_names[0] if target_names else 'prediction'
+    return [
+        {
+            'name': default_name,
+            'estimator': model,
+            'metadata': {},
+        }
+    ]
+
+
+def build_shap_explainer(model, X):
+    """Construct a SHAP explainer using the cheapest compatible strategy first."""
+    model_type = type(model).__name__
+    if 'XGB' in model_type or 'RandomForest' in model_type:
+        return shap.TreeExplainer(model)
+
+    try:
+        return shap.Explainer(model, X)
+    except Exception:
+        return shap.Explainer(model)
+
+
+def log_pipeline_shap_artifacts(best_estimator, X, artifact_key, target_names=None):
+    """Best-effort SHAP logging for pipelines with per-target artifacts when wrappers are used."""
     try:
         selected_frame = get_variance_selected_frame(best_estimator, X)
-        shap_explainer = shap.Explainer(best_estimator.named_steps['model'])
-        shap_values = shap_explainer(selected_frame)
-        log_shap_artifacts(shap_values, selected_frame, artifact_prefix=artifact_key)
+        shap_targets = resolve_shap_target_estimators(best_estimator.named_steps['model'], target_names=target_names)
+        for shap_target in shap_targets:
+            target_name = shap_target['name']
+            safe_target_name = sanitize_run_suffix(target_name)
+            target_artifact_key = f'{artifact_key}/shap_{safe_target_name}'
+            shap_explainer = build_shap_explainer(shap_target['estimator'], selected_frame)
+            shap_values = shap_explainer(selected_frame)
+            log_shap_artifacts(shap_values, selected_frame, artifact_prefix=target_artifact_key)
+            if shap_target['metadata'] and mlflow.active_run() is not None:
+                metadata = {
+                    'target_name': target_name,
+                    **shap_target['metadata'],
+                }
+                mlflow.log_dict(metadata, f'{target_artifact_key}/metadata.json')
     except Exception as exc:
         log_progress(f"Skipping SHAP logging for {artifact_key}: {exc}")
         if mlflow.active_run() is not None:
@@ -716,8 +811,11 @@ def _run_preprocessing_impl(df, target_col, gene_expr_cols, has_duplicates, bool
     
     # filter low signal |z| > 1.8
 
+    df = coerce_gene_expression_columns(df, gene_expr_cols)
+
     for col in gene_expr_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        if col not in df.columns or pd.api.types.is_bool_dtype(df[col]):
+            continue
         df[col] = df[col].where(df[col].abs() > 1.5, 0)
         
     
@@ -892,6 +990,9 @@ def _run_preprocessing_impl(df, target_col, gene_expr_cols, has_duplicates, bool
                 f"Column: {col}, KS stat: {ks_stat:.4f}, KS p-value: {ks_p:.4f}, "
                 f"Kurtosis: {kurtosis:.4f}, Decision: {decision}"
             )
+        else:
+                decision_scalers[col] = 'NoScaling'
+                print(f"Column: {col}, gene expression column -> NoScaling")
 
         # implement the actual transformations based on the decisions
         for col, decision in decision_scalers.items():
@@ -986,14 +1087,6 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
             'estimator': LinearRegression(),
             'param_grid': {}
         },
-        'logistic_regression': {
-            'estimator': LogisticRegression(random_state=42, max_iter=1000),
-            'param_grid': {
-                'C': [0.1, 1, 10],
-                'penalty': ['l2'],
-                'solver': ['lbfgs']
-            }
-        },  
         'random_forest': {
             'estimator': RandomForestRegressor(random_state=42, n_jobs=-1),
             'param_grid': {
@@ -1002,15 +1095,8 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
                 'min_samples_split': [2, 5],
                 'min_samples_leaf': [1, 2]
             }
-        },
-        # 'svm': {
-        #     'estimator': SVR(random_state=42),
-        #     'param_grid': {
-        #         'C': [0.1, 1, 10],
-        #         'kernel': ['linear', 'rbf'],
-        #         'gamma': ['scale', 'auto']
-        #     }
-        # }
+        }
+
     }
     best_model_name = None
     best_search = None
@@ -1076,7 +1162,8 @@ def run_training_regressor(X_train, y_train, X_val, y_val, X_test, y_test, cv=No
     
     # SHAP
     with timed_stage("regressor_shap", "regressor_shap"):
-        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection')
+        regressor_target_names = [y_train.name] if getattr(y_train, 'name', None) else None
+        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection', target_names=regressor_target_names)
 
     return best_search.best_estimator_, {
         'best_model_name': best_model_name,
@@ -1110,19 +1197,8 @@ def run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, 
                 'estimator__min_samples_leaf': [1, 2],
                 'estimator__class_weight': [None, 'balanced']
             }
-        },
-        # 'svm': {
-        #     'estimator': MultiOutputClassifier(
-        #         SVC(random_state=42),
-        #         n_jobs=-1
-        #     ),
-        #     'param_grid': {
-        #         'estimator__C': [0.1, 1, 10],
-        #         'estimator__kernel': ['linear', 'rbf'],
-        #         'estimator__gamma': ['scale', 'auto'],
-        #         'estimator__class_weight': [None, 'balanced']
-        #     }
-        # }
+        }
+
     }
 
     if XGBClassifier is not None:
@@ -1252,7 +1328,7 @@ def run_training_multitarget_classifier(X_train, y_train, X_val, y_val, X_test, 
 
     # shap explainer can be added here for the best model if needed, but it may require additional handling based on the model type and data size
     with timed_stage("multitarget_shap", "multitarget_shap"):
-        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection')
+        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection', target_names=y_train.columns.tolist())
 
     log_sklearn_model_artifact(best_search.best_estimator_, TRAINED_MODEL_ARTIFACT)
     return best_search.best_estimator_, {
@@ -1286,19 +1362,7 @@ def run_training_multilabel_classifier(X_train, y_train, X_val, y_val, X_test, y
                 'estimator__min_samples_leaf': [1, 2],
                 'estimator__class_weight': [None, 'balanced']
             }
-        },
-        # 'svm': {
-        #     'estimator': OneVsRestClassifier(
-        #         SVC(random_state=42),
-        #         n_jobs=-1
-        #     ),
-        #     'param_grid': {
-        #         'estimator__C': [0.1, 1, 10],
-        #         'estimator__kernel': ['linear', 'rbf'],
-        #         'estimator__gamma': ['scale', 'auto'],
-        #         'estimator__class_weight': [None, 'balanced']
-        #     }
-        # }
+        }
     }
 
     if XGBClassifier is not None:
@@ -1423,7 +1487,7 @@ def run_training_multilabel_classifier(X_train, y_train, X_val, y_val, X_test, y
         }
 
     with timed_stage("multilabel_shap", "multilabel_shap"):
-        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection')
+        log_pipeline_shap_artifacts(best_search.best_estimator_, X_test, 'model_selection', target_names=y_train.columns.tolist())
 
     log_sklearn_model_artifact(best_search.best_estimator_, TRAINED_MODEL_ARTIFACT)
     return best_search.best_estimator_, {
