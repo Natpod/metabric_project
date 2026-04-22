@@ -174,19 +174,55 @@ In practical terms, this means the repository is designed to answer the followin
 
 That is a stronger and more clinically relevant question than asking whether the model performs well on a random holdout from the same pooled dataset.
 
+# METHODOLOGY REFERENCES
+More details about quality check, preprocessing, training can be found in `docs/eda.md`, and `docs.preprocessing`
+
+# RESULTS AND EVALUATION
+
+Final report of best run - models per use case can be seen in reports\EvaluationResults.ipynb and docs/reports\EvaluationResults.md 
 
 # RESULTS
+**4. Evaluation of Use Case 1: Therapy Support (Multilabel)**
+Treatment planning is an inherently multilabel task, where decisions regarding chemotherapy, radiotherapy, surgery, and hormonal therapy are clinically coupled. The model was designed to identify these historical prescription patterns, recognizing that jointly modeling these labels captures the logic of co-administration better than isolated models.
 
-# EVALUATION
+### Model Architecture Justification
 
-Therapeutic target
-- Metrics
-- Explainability
+**Random Forest (RF)** was selected as the superior estimator over XGBoost for two fundamental technical reasons:
 
-Prognosis target
-- Metrics
-- Explainability
+* **Handling Imbalance:** In the context of highly imbalanced therapeutic labels, RF demonstrated a superior ability to adapt to minority classes.
+* **Optimization Metric:** The **f1_samples** metric was prioritized to reflect patient-level (row-wise) precision, since XGBoost tends to optimize global performance at the expense of less frequent therapeutic combinations.
 
-Survival target
-- Metrics
-- Explainability
+Although the use of SHAP provides indispensable granular interpretability for decision support, the current overall accuracy indicates that the model should be used as a case-retrieval and support tool, rather than for autonomous prescription.
+
+---
+
+**5. Evaluation of Use Case 2: Survival Prognosis (Regression)**
+Prognosis is the cornerstone of clinical follow-up. For this validation, the use case was strictly restricted to patients with observed death events (**overall_survival == 0**, according to the source context), transforming the task into a regression problem over survival duration in months.
+
+### Critical Performance Analysis
+
+The resulting model explains only **13.7% of the variance** (R²). From an expert clinical validation perspective, **this metric rules out the clinical deployment of the model**. Such limited predictive capacity suggests that the current feature space (clinical-molecular) is insufficient, or that the RF/Linear regression approach is fundamentally incapable of capturing the temporal dynamics of survival without considering censored data or deeper nonlinear interactions.
+
+The results should be treated as purely experimental and highlight a critical gap in prognosis modeling.
+
+---
+
+**6. Evaluation of Use Case 3: Diagnostic Support (Multiclass)**
+Accurate diagnosis, grounded in **Oncotree** coding, is the prerequisite for any intervention. This use case evaluated model consistency under the **f1_weighted** metric.
+
+The results in this area are significantly more robust. The **LOCO** strategy confirmed that the model successfully generalizes across all cohort combinations, which **validates the integrity of the integrated feature space as a reliable biological signal**. The model’s ability to recover tumor classification from molecular and clinical profiles demonstrates that the data possess a coherent diagnostic structure that is resilient to the heterogeneity of data sources.
+
+---
+
+**7. Conclusions and Recommendations for Clinical Applicability**
+This technical validation process provides an honest roadmap of the potential and limitations of AI applied to **METABRIC**.
+
+### Summary of Conclusions
+
+* **Rigor in Generalization:** The LOCO method is the only tool capable of exposing optimistic bias in heterogeneous oncology data, revealing the true capacity for institutional transferability.
+* **Random Forest Superiority in Clinical Contexts:** In scenarios of marked imbalance and complex tabular data (such as therapy support), RF offers stability and minority-class fitting that surpasses global gradient optimizers.
+* **Diagnosis-Prognosis Gap:** There is an alarming disparity between the high reliability of diagnostic models and the inability of survival models to explain temporal variance. This requires a reassessment of the molecular features used for long-term prognosis.
+
+### Final Statement on Use
+
+These models should be integrated **exclusively as decision-support tools**. The survival metric demands extreme caution; the system should act as a mechanism for structuring complex signals to assist professional judgment, and never as an autonomous decision-making system.
