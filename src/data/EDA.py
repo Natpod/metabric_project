@@ -66,6 +66,15 @@ def get_numeric_feature_columns(df):
     return [col for col in numeric_cols if not pd.api.types.is_bool_dtype(df[col])]
 
 
+def prepare_numeric_feature_frame(df):
+    """Convert numeric and nullable boolean features into a numeric matrix safe for sklearn."""
+    feature_df = df.select_dtypes(include=['number', 'boolean']).copy()
+    for col in feature_df.columns:
+        if str(feature_df[col].dtype) == 'boolean':
+            feature_df[col] = feature_df[col].astype('Int64')
+    return feature_df.fillna(0)
+
+
 def cast_true_false_categorical_columns(df):
     """Cast categorical columns with only true/false values to pandas boolean dtype."""
     for col in df.columns:
@@ -229,24 +238,29 @@ def run_preprocessing(df, id_column,has_duplicates,boolean_cast_columns,outlier_
 
 def run_pca_visualization(df, target_col, report=None):
     """Generate PCA visualization for the dataset."""
-    if target_col == pd.api.types.is_numeric_dtype(df[target_col]):
-        #quantize
-        df[target_col] = pd.qcut(df[target_col], q=4, labels=False, duplicates='drop')
-    elif pd.api.types.is_bool_dtype(df[target_col]):
-        df[target_col] = df[target_col].astype('string')
+    plot_df = df.copy()
+    use_target = bool(target_col) and target_col in plot_df.columns
+    if use_target and pd.api.types.is_numeric_dtype(plot_df[target_col]) and not pd.api.types.is_bool_dtype(plot_df[target_col]):
+        # Quantize numeric targets to improve color separation in scatter plots.
+        plot_df[target_col] = pd.qcut(plot_df[target_col], q=4, labels=False, duplicates='drop')
+    elif use_target and pd.api.types.is_bool_dtype(plot_df[target_col]):
+        plot_df[target_col] = plot_df[target_col].astype('string')
         
-    numeric_cols = get_numeric_feature_columns(df)
+    numeric_cols = get_numeric_feature_columns(plot_df)
     pca = PCA(n_components=2, random_state=42)
-    pca_results = pca.fit_transform(df[numeric_cols].fillna(0))
+    pca_results = pca.fit_transform(plot_df[numeric_cols].fillna(0))
 
     fig, ax = plt.subplots()
-    if target_col:
-        sns.scatterplot(x=pca_results[:, 0], y=pca_results[:, 1], hue=df[target_col], ax=ax, palette='viridis')
+    if use_target:
+        sns.scatterplot(x=pca_results[:, 0], y=pca_results[:, 1], hue=plot_df[target_col], ax=ax, palette='viridis')
         ax.set_title(f"PCA Visualization colored by {target_col}")
         move_legend_outside(ax, title=target_col)
     else:
         sns.scatterplot(x=pca_results[:, 0], y=pca_results[:, 1], ax=ax)
-        ax.set_title("PCA Visualization")
+        if target_col:
+            ax.set_title(f"PCA Visualization (target '{target_col}' not found)")
+        else:
+            ax.set_title("PCA Visualization")
 
     fig.tight_layout(rect=(0, 0, 0.82, 1))
 
@@ -256,24 +270,29 @@ def run_pca_visualization(df, target_col, report=None):
     
 def tsne_visualization(df, target_col, report=None):
     """Generate t-SNE visualization for the dataset."""
-    if target_col == pd.api.types.is_numeric_dtype(df[target_col]):
-        #quantize
-        df[target_col] = pd.qcut(df[target_col], q=4, labels=False, duplicates='drop')
-    elif pd.api.types.is_bool_dtype(df[target_col]):
-        df[target_col] = df[target_col].astype('string')
+    plot_df = df.copy()
+    use_target = bool(target_col) and target_col in plot_df.columns
+    if use_target and pd.api.types.is_numeric_dtype(plot_df[target_col]) and not pd.api.types.is_bool_dtype(plot_df[target_col]):
+        # Quantize numeric targets to improve color separation in scatter plots.
+        plot_df[target_col] = pd.qcut(plot_df[target_col], q=4, labels=False, duplicates='drop')
+    elif use_target and pd.api.types.is_bool_dtype(plot_df[target_col]):
+        plot_df[target_col] = plot_df[target_col].astype('string')
 
-    numeric_cols = get_numeric_feature_columns(df)
+    numeric_cols = get_numeric_feature_columns(plot_df)
     tsne = TSNE(n_components=2, random_state=42)
-    tsne_results = tsne.fit_transform(df[numeric_cols].fillna(0))
+    tsne_results = tsne.fit_transform(plot_df[numeric_cols].fillna(0))
 
     fig, ax = plt.subplots()
-    if target_col:
-        sns.scatterplot(x=tsne_results[:, 0], y=tsne_results[:, 1], hue=df[target_col], ax=ax, palette='viridis')
+    if use_target:
+        sns.scatterplot(x=tsne_results[:, 0], y=tsne_results[:, 1], hue=plot_df[target_col], ax=ax, palette='viridis')
         ax.set_title(f"t-SNE Visualization colored by {target_col}")
         move_legend_outside(ax, title=target_col)
     else:
         sns.scatterplot(x=tsne_results[:, 0], y=tsne_results[:, 1], ax=ax)
-        ax.set_title("t-SNE Visualization")
+        if target_col:
+            ax.set_title(f"t-SNE Visualization (target '{target_col}' not found)")
+        else:
+            ax.set_title("t-SNE Visualization")
 
     fig.tight_layout(rect=(0, 0, 0.82, 1))
 
@@ -289,6 +308,14 @@ def run_correlation_analysis(df, columns, target, report=None):
         return
 
     corr_matrix = df[numeric_cols].corr()
+    corr_matrix = corr_matrix.replace([np.inf, -np.inf], np.nan)
+
+    finite_columns = corr_matrix.columns[np.isfinite(corr_matrix.to_numpy()).all(axis=0)].tolist()
+    if len(finite_columns) < 2:
+        print("Not enough finite correlations for correlation analysis.")
+        return
+
+    corr_matrix = corr_matrix.loc[finite_columns, finite_columns]
 
     if target in corr_matrix.columns:
         target_corr = corr_matrix[target].drop(target).sort_values(ascending=False)
@@ -304,14 +331,15 @@ def run_correlation_analysis(df, columns, target, report=None):
 
 
 def run_gene_expression_heatmap_and_clustermap(df, target=None, report=None, max_features=50):
-    """Generate a heatmap and clustermap for gene expression columns."""
+    """Generate heatmap and clustermap plots for high-variance gene expression values."""
+    plot_df = df.copy()
     gene_expression_columns = [
-        col for col in get_numeric_feature_columns(df)
+        col for col in get_numeric_feature_columns(plot_df)
         if col != target and col != 'cohort'
     ]
     # Discretize target if numeric
-    if target is not None and target in df.columns and pd.api.types.is_numeric_dtype(df[target]):
-        df[target + '_binned'] = pd.qcut(df[target], q=4, labels=False, duplicates='drop')
+    if target is not None and target in plot_df.columns and pd.api.types.is_numeric_dtype(plot_df[target]):
+        plot_df[target + '_binned'] = pd.qcut(plot_df[target], q=4, labels=False, duplicates='drop')
         target_col_for_annot = target + '_binned'
     else:
         target_col_for_annot = target
@@ -323,7 +351,7 @@ def run_gene_expression_heatmap_and_clustermap(df, target=None, report=None, max
     selected_columns = gene_expression_columns
     if len(gene_expression_columns) > max_features:
         selected_columns = (
-            df[gene_expression_columns]
+            plot_df[gene_expression_columns]
             .var()
             .sort_values(ascending=False)
             .head(max_features)
@@ -331,49 +359,51 @@ def run_gene_expression_heatmap_and_clustermap(df, target=None, report=None, max
             .tolist()
         )
 
-    correlation_matrix = df[selected_columns].corr()
+    expression_matrix = plot_df[selected_columns].fillna(0).transpose()
     analysis_logs = [
         f"Gene expression columns available: {len(gene_expression_columns)}",
         f"Gene expression columns visualized: {len(selected_columns)}",
+        "Plot content: expression values for selected genes across samples.",
         "Selection strategy: top variance genes." if len(selected_columns) < len(gene_expression_columns) else "Selection strategy: all available gene columns.",
     ]
 
     heatmap_fig, heatmap_ax = plt.subplots(figsize=(14, 10))
-    sns.heatmap(correlation_matrix, cmap='coolwarm', center=0, ax=heatmap_ax)
-    heatmap_ax.set_title("Gene Expression Correlation Heatmap")
+    sns.heatmap(expression_matrix, cmap='coolwarm', ax=heatmap_ax, xticklabels=False)
+    heatmap_ax.set_title("High-Variance Gene Expression Heatmap")
+    heatmap_ax.set_xlabel("Samples")
+    heatmap_ax.set_ylabel("Genes")
     heatmap_fig.tight_layout()
     if report:
         report.add_stage("Gene Expression Heatmap", analysis_logs, heatmap_fig)
     plt.close(heatmap_fig)
 
-    # Prepare col_colors for clustermap (target and cohort)
+    # Prepare sample annotations for clustermap.
     col_colors = None
     if target_col_for_annot is not None or 'cohort' in df.columns:
         col_colors_dict = {}
-        if target_col_for_annot is not None and target_col_for_annot in df.columns:
-            # Use a categorical palette for the target
-            unique_targets = df[target_col_for_annot].astype(str).unique()
+        if target_col_for_annot is not None and target_col_for_annot in plot_df.columns:
+            unique_targets = plot_df[target_col_for_annot].astype(str).unique()
             target_palette = sns.color_palette('Set2', n_colors=len(unique_targets))
             target_lut = dict(zip(unique_targets, target_palette))
-            col_colors_dict['Target'] = df[target_col_for_annot].astype(str).map(target_lut)
-        if 'cohort' in df.columns:
-            unique_cohorts = df['cohort'].astype(str).unique()
+            col_colors_dict['Target'] = plot_df[target_col_for_annot].astype(str).map(target_lut)
+        if 'cohort' in plot_df.columns:
+            unique_cohorts = plot_df['cohort'].astype(str).unique()
             cohort_palette = sns.color_palette('Set1', n_colors=len(unique_cohorts))
             cohort_lut = dict(zip(unique_cohorts, cohort_palette))
-            col_colors_dict['Cohort'] = df['cohort'].astype(str).map(cohort_lut)
+            col_colors_dict['Cohort'] = plot_df['cohort'].astype(str).map(cohort_lut)
         if col_colors_dict:
             col_colors = pd.DataFrame(col_colors_dict)
 
     cluster_grid = sns.clustermap(
-        correlation_matrix,
+        expression_matrix,
         cmap='coolwarm',
-        center=0,
         figsize=(14, 12),
         col_colors=col_colors,
+        xticklabels=False,
         dendrogram_ratio=(.1, .2),
         cbar_pos=(0.02, 0.8, 0.05, 0.18)
     )
-    cluster_grid.ax_heatmap.set_title("Gene Expression Correlation Clustermap\n(Barra lateral: Target y Cohort)")
+    cluster_grid.ax_heatmap.set_title("High-Variance Gene Expression Clustermap\n(Sample annotations: Target and Cohort)")
     cluster_grid.fig.tight_layout()
     if report:
         report.add_stage("Gene Expression Clustermap", analysis_logs, cluster_grid.fig)
@@ -470,6 +500,8 @@ def run_mutual_information_analysis(df, target_columns, report=None, top_n=20):
             analysis_logs.append(f"Skipped mutual information analysis for '{target}': no numeric or boolean features available.")
             continue
 
+        prepared_feature_df = prepare_numeric_feature_frame(feature_df)
+
         target_series = df[target]
         if pd.api.types.is_numeric_dtype(target_series) and not pd.api.types.is_bool_dtype(target_series):
             target_values = pd.to_numeric(target_series, errors='coerce')
@@ -478,7 +510,7 @@ def run_mutual_information_analysis(df, target_columns, report=None, top_n=20):
                 analysis_logs.append(f"Skipped mutual information analysis for '{target}': insufficient numeric target values.")
                 continue
             scores = mutual_info_regression(
-                feature_df.loc[valid_mask].fillna(0),
+                prepared_feature_df.loc[valid_mask],
                 target_values.loc[valid_mask],
                 random_state=42,
             )
@@ -491,7 +523,7 @@ def run_mutual_information_analysis(df, target_columns, report=None, top_n=20):
                 continue
             encoded_target, _ = pd.factorize(normalized_target.loc[valid_mask])
             scores = mutual_info_classif(
-                feature_df.loc[valid_mask].fillna(0),
+                prepared_feature_df.loc[valid_mask],
                 encoded_target,
                 random_state=42,
             )
@@ -582,9 +614,12 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     # CASO DE USO 1 MEJOR TERAPIA
     ######################
     print("Exploracion de terapias en pacientes sin causa de muerte por cancer")
-    analysis_df = df.copy()
-    analysis_df = analysis_df[(analysis_df['death_from_cancer'] != 'Died of Other Causes')| (analysis_df["overall_survival"]==1)] # ensure we are modeling breast cancer specific survival and not overall survival, which would be a different use case with different target variable definition and modeling approach
-    
+    analysis_df = pd.read_csv(main_file_path)
+    if "death_from_cancer" in analysis_df.columns:
+        analysis_df = analysis_df[(analysis_df['death_from_cancer'] != 'Died of Other Causes')| (analysis_df["overall_survival"]==1)] # ensure we are modeling breast cancer specific survival and not overall survival, which would be a different use case with different target variable definition and modeling approach
+    else:
+        analysis_df = analysis_df[analysis_df["overall_survival"]==1] # if death_from_cancer is not available, we can only filter by overall survival, which is a weaker proxy for breast cancer specific survival but still allows us to focus on patients who are alive at the end of the study period and therefore more likely to have information about their therapeutic targets relevant for treatment decision modeling
+
     for col in therapeutic_targets:
         if col != "type_of_breast_surgery" and col in analysis_df.columns:
             analysis_df[col] = analysis_df[col].astype(str).str.strip().str.lower().map(
@@ -592,7 +627,7 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
             ).astype('boolean')
 
     df_surgery = pd.DataFrame()
-    df_surgery["breast_surgery"] = ~df["type_of_breast_surgery"].isna()
+    df_surgery["breast_surgery"] = ~analysis_df["type_of_breast_surgery"].isna()
     analysis_df = pd.concat([analysis_df, df_surgery], axis=1)
     thcolumns = [col for col in therapeutic_targets if col != "type_of_breast_surgery"]
     analysis_df["multicategory_therapeutic_target"] = build_multicategory_therapeutic_target(
@@ -661,17 +696,10 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     selected_non_gene_columns = [col for col in processed_non_gene_columns if col in df_p.columns]
     df_non_gene = df_p[selected_non_gene_columns]
     df_gene = df_p.drop(columns=selected_non_gene_columns, errors='ignore')
-    mutual_info_df = df_p.copy()
-    mutual_target_columns = []
-    for target in therapeutic_targets:
-        if target in analysis_df.columns and target not in mutual_info_df.columns:
-            mutual_info_df[target] = analysis_df.loc[mutual_info_df.index, target]
-        if target in mutual_info_df.columns and target not in mutual_target_columns:
-            mutual_target_columns.append(target)
+
     run_correlation_analysis(df_non_gene, df_non_gene.columns, pronostic_targets[0], report)
     run_correlation_analysis(df_gene, df_gene.columns, pronostic_targets[0], report)
     run_gene_expression_heatmap_and_clustermap(df_gene, pronostic_targets[0], report)
-    run_mutual_information_analysis(mutual_info_df, pronostic_targets, report)
     run_pca_visualization(df_p, pronostic_targets[0], report)
     tsne_visualization(df_p, pronostic_targets[0], report)
 
@@ -692,18 +720,10 @@ def run_eda(id_column, non_gene_expression_columns, therapeutic_targets, diagnos
     selected_non_gene_columns = [col for col in processed_non_gene_columns if col in df_p.columns]
     df_non_gene = df_p[selected_non_gene_columns]
     df_gene = df_p.drop(columns=selected_non_gene_columns, errors='ignore')
-    mutual_info_df = df_p.copy()
-    mutual_target_columns = []
-    for target in therapeutic_targets:
-        if target in analysis_df.columns and target not in mutual_info_df.columns:
-            mutual_info_df[target] = analysis_df.loc[mutual_info_df.index, target]
-        if target in mutual_info_df.columns and target not in mutual_target_columns:
-            mutual_target_columns.append(target)
 
     run_correlation_analysis(df_non_gene, df_non_gene.columns, diagnostic_targets[0], report)
     run_correlation_analysis(df_gene, df_gene.columns, diagnostic_targets[0], report)
     run_gene_expression_heatmap_and_clustermap(df_gene, diagnostic_targets[0], report)
-    run_mutual_information_analysis(mutual_info_df, diagnostic_targets, report)
     run_pca_visualization(df_p, diagnostic_targets[0], report)
     tsne_visualization(df_p, diagnostic_targets[0], report)
 

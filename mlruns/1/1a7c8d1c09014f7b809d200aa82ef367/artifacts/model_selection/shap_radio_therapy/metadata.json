@@ -1,0 +1,5 @@
+{
+  "target_name": "radio_therapy",
+  "wrapper_type": "OneVsRestClassifier",
+  "explained_submodel_index": 4
+}

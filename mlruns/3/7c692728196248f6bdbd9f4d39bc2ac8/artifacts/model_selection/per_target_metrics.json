@@ -1,0 +1,30 @@
+{
+  "orctree_breast": {
+    "accuracy": 1.0,
+    "f1_weighted": 1.0
+  },
+  "orctree_idc": {
+    "accuracy": 0.9918256130790191,
+    "f1_weighted": 0.9918645997430174
+  },
+  "orctree_ilc": {
+    "accuracy": 1.0,
+    "f1_weighted": 1.0
+  },
+  "orctree_immc": {
+    "accuracy": 1.0,
+    "f1_weighted": 1.0
+  },
+  "orctree_mbc": {
+    "accuracy": 1.0,
+    "f1_weighted": 1.0
+  },
+  "orctree_mdlc": {
+    "accuracy": 1.0,
+    "f1_weighted": 1.0
+  },
+  "orctree_nan": {
+    "accuracy": 0.9904632152588556,
+    "f1_weighted": 0.9857176693951922
+  }
+}

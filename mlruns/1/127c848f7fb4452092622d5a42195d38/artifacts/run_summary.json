@@ -1,0 +1,78 @@
+{
+  "run_name": "therapy_multilabel_heldout_5",
+  "task_type": "multilabel_classification",
+  "dataset_path": "C:\\Users\\User\\metabric_project\\data\\FCS_ml_test_input_data_rna_mutation.csv",
+  "row_count": 1424,
+  "target_columns": [
+    "breast_surgery_BREAST CONSERVING",
+    "breast_surgery_MASTECTOMY",
+    "chemotherapy",
+    "hormone_therapy",
+    "radio_therapy"
+  ],
+  "preprocessing": {
+    "categorical_feature_count": 17,
+    "numeric_feature_count": 580,
+    "encoded_feature_count": 580,
+    "split_sizes": {
+      "train": 1323,
+      "validation": 0,
+      "test": 101
+    }
+  },
+  "training": {
+    "best_model_name": "xgboost",
+    "best_cv_score": 0.7243622705037799,
+    "scoring": "f1_samples",
+    "candidate_models": {
+      "random_forest": {
+        "best_params": {
+          "model__estimator__class_weight": null,
+          "model__estimator__max_depth": 10,
+          "model__estimator__min_samples_leaf": 2,
+          "model__estimator__min_samples_split": 2,
+          "model__estimator__n_estimators": 200
+        },
+        "best_cv_score": 0.7214457649268969
+      },
+      "xgboost": {
+        "best_params": {
+          "model__estimator__colsample_bytree": 1.0,
+          "model__estimator__learning_rate": 0.05,
+          "model__estimator__max_depth": 3,
+          "model__estimator__n_estimators": 100,
+          "model__estimator__subsample": 0.8
+        },
+        "best_cv_score": 0.7243622705037799
+      }
+    },
+    "validation_metrics": {},
+    "test_metrics": {
+      "subset_accuracy": 0.2079207920792079,
+      "f1_samples": 0.6028760018859027,
+      "f1_macro": 0.6592012336797021,
+      "per_target_metrics": {
+        "breast_surgery_BREAST CONSERVING": {
+          "accuracy": 0.6534653465346535,
+          "f1_binary": 0.47761194029850745
+        },
+        "breast_surgery_MASTECTOMY": {
+          "accuracy": 0.6435643564356436,
+          "f1_binary": 0.7313432835820896
+        },
+        "chemotherapy": {
+          "accuracy": 0.9504950495049505,
+          "f1_binary": 0.9152542372881356
+        },
+        "hormone_therapy": {
+          "accuracy": 0.6831683168316832,
+          "f1_binary": 0.6363636363636364
+        },
+        "radio_therapy": {
+          "accuracy": 0.4158415841584158,
+          "f1_binary": 0.5354330708661418
+        }
+      }
+    }
+  }
+}

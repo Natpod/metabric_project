@@ -1,0 +1,22 @@
+{
+  "breast_surgery_BREAST CONSERVING": {
+    "accuracy": 0.6534653465346535,
+    "f1_binary": 0.47761194029850745
+  },
+  "breast_surgery_MASTECTOMY": {
+    "accuracy": 0.6435643564356436,
+    "f1_binary": 0.7313432835820896
+  },
+  "chemotherapy": {
+    "accuracy": 0.9504950495049505,
+    "f1_binary": 0.9152542372881356
+  },
+  "hormone_therapy": {
+    "accuracy": 0.6831683168316832,
+    "f1_binary": 0.6363636363636364
+  },
+  "radio_therapy": {
+    "accuracy": 0.4158415841584158,
+    "f1_binary": 0.5354330708661418
+  }
+}

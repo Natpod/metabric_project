@@ -1,0 +1,15 @@
+artifact_path: file:///C:/Users/User/metabric_project/mlruns/3/models/m-c9f66d9d6ab04d239ff1f75144b8d316/artifacts
+flavors:
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+    skops_trusted_types: null
+mlflow_version: 3.11.1
+model_id: m-c9f66d9d6ab04d239ff1f75144b8d316
+model_size_bytes: 1928
+model_uuid: m-c9f66d9d6ab04d239ff1f75144b8d316
+prompts: null
+run_id: 7e62a207e9c342bc95005fd1dfa23952
+utc_time_created: '2026-04-21 19:03:22.040752'

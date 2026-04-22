@@ -9,6 +9,9 @@ import os
 import json
 from mlflow.tracking import MlflowClient
 import argparse
+import numpy as np
+from sklearn.multioutput import MultiOutputClassifier
+from sklearn.multiclass import OneVsRestClassifier
 
 
 PREPROCESSING_ENCODER_ARTIFACT = "preprocessing_one_hot_encoder"
@@ -76,6 +79,8 @@ def apply_numeric_transformers(X, numeric_transformers):
         if col not in X.columns:
             continue
 
+        X[col] = pd.to_numeric(X[col], errors="coerce")
+
         transform_type = transformer.get("type")
         if transform_type == "Log1pTransform":
             X.loc[:, col] = X[col].apply(lambda value: np.log1p(value) if pd.notna(value) else value)
@@ -97,9 +102,57 @@ def apply_numeric_transformers(X, numeric_transformers):
 
     return X
 
+def _is_model_artifact_dir(client, run_id, artifact_path):
+    """Return True when artifact_path contains an MLflow model (MLmodel file)."""
+    try:
+        artifacts = client.list_artifacts(run_id, artifact_path)
+    except Exception:
+        return False
+    return any((not item.is_dir) and os.path.basename(item.path) == "MLmodel" for item in artifacts)
+
+
+def find_model_artifact_path(run_id, preferred_artifact_name=TRAINED_MODEL_ARTIFACT, max_depth=4):
+    """Find the first artifact directory in a run that contains an MLmodel file."""
+    client = MlflowClient()
+
+    preferred_candidates = [
+        preferred_artifact_name,
+        TRAINED_MODEL_ARTIFACT,
+        "model",
+        "models",
+    ]
+    seen = set()
+    for candidate in preferred_candidates:
+        if not candidate or candidate in seen:
+            continue
+        seen.add(candidate)
+        if _is_model_artifact_dir(client, run_id, candidate):
+            return candidate
+
+    queue = [("", 0)]
+    while queue:
+        current_path, depth = queue.pop(0)
+        try:
+            children = client.list_artifacts(run_id, current_path)
+        except Exception:
+            continue
+
+        for child in children:
+            if child.is_dir:
+                if _is_model_artifact_dir(client, run_id, child.path):
+                    return child.path
+                if depth + 1 < max_depth:
+                    queue.append((child.path, depth + 1))
+
+    raise ValueError(
+        f"No MLflow model artifact directory (containing MLmodel) found for run '{run_id}'."
+    )
+
+
 def load_model(run_id, model_artifact_name=TRAINED_MODEL_ARTIFACT):
     """Load a trained model from MLflow given a run ID."""
-    return mlflow.sklearn.load_model(f"runs:/{run_id}/{model_artifact_name}")
+    resolved_model_artifact_path = find_model_artifact_path(run_id, preferred_artifact_name=model_artifact_name)
+    return mlflow.sklearn.load_model(f"runs:/{run_id}/{resolved_model_artifact_path}")
 
 def prepare_data_for_inference(df, test_size=0.2, random_state=42, run_id=None):
     X = df
@@ -127,6 +180,11 @@ def prepare_data_for_inference(df, test_size=0.2, random_state=42, run_id=None):
         X_encoded_df = pd.DataFrame(X_encoded, columns=encoded_col_names, index=X.index)
         X = pd.concat([X.drop(columns=categorical_cols), X_encoded_df], axis=1)
         X = apply_numeric_transformers(X, numeric_transformers)
+
+        encoded_feature_names = preprocessing_artifacts.get("encoded_feature_names")
+        if encoded_feature_names:
+            available = [c for c in encoded_feature_names if c in X.columns]
+            X = X[available]
     else:
         # Identify categorical and numerical columns
         categorical_cols = X.select_dtypes(include=['object', 'boolean']).columns
@@ -144,24 +202,135 @@ def prepare_data_for_inference(df, test_size=0.2, random_state=42, run_id=None):
 
 
 def get_best_run_id(experiment_name):
-    """Get the best run ID from an MLflow experiment based on a specified metric."""
+    """Get the best run ID from an MLflow experiment among runs that have a logged model artifact."""
     client = MlflowClient()
     experiment = client.get_experiment_by_name(experiment_name)
     if experiment is None:
         raise ValueError(f"Experiment '{experiment_name}' not found.")
-    
-    runs = client.search_runs(experiment.experiment_id, order_by=["metrics.val_auc DESC"])
+
+    runs = client.search_runs(
+        [experiment.experiment_id],
+        max_results=200,
+        order_by=["attributes.start_time DESC"],
+    )
     if not runs:
         raise ValueError(f"No runs found for experiment '{experiment_name}'.")
-    
-    best_run_id = runs[0].info.run_id
+
+    metric_priority = [
+        "selected_model_best_cv_f1_weighted",
+        "selected_model_best_cv_f1_samples",
+        "selected_model_best_cv_r2",
+        "test_exact_match_accuracy",
+        "test_f1_samples",
+        "test_r2",
+    ]
+
+    ranked_runs = []
+    for run in runs:
+        run_id = run.info.run_id
+        try:
+            find_model_artifact_path(run_id)
+        except Exception:
+            continue
+
+        score = None
+        for metric_key in metric_priority:
+            metric_value = run.data.metrics.get(metric_key)
+            if metric_value is not None:
+                score = float(metric_value)
+                break
+
+        if score is None:
+            score = float("-inf")
+        ranked_runs.append((score, run.info.start_time or 0, run_id))
+
+    if not ranked_runs:
+        raise ValueError(
+            f"No runs with a loadable model artifact were found for experiment '{experiment_name}'."
+        )
+
+    ranked_runs.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    best_run_id = ranked_runs[0][2]
     return best_run_id
 
 def get_shap_values(model, X):
-    """Calculate SHAP values for the given model and input data."""
-    explainer = shap.Explainer(model, X)
-    shap_values = explainer(X)
-    return shap_values
+    """Calculate SHAP values for the pipeline model and input data.
+
+    Unwraps the VarianceThreshold step, applies it to X, then builds a
+    SHAP explainer on the inner estimator (TreeExplainer for tree models,
+    generic Explainer otherwise).
+    """
+    # Unwrap the variance selector from the Pipeline
+    if hasattr(model, "named_steps") and "variance" in model.named_steps:
+        variance_step = model.named_steps["variance"]
+        X_selected = pd.DataFrame(
+            variance_step.transform(X),
+            columns=X.columns[variance_step.get_support()],
+            index=X.index,
+        )
+        inner_model = model.named_steps["model"]
+    else:
+        X_selected = X
+        inner_model = model
+
+    def safe_model_output(estimator, feature_frame):
+        """Return estimator output as a numpy array with stable shape for SHAP fallbacks."""
+        if hasattr(estimator, "predict_proba"):
+            output = estimator.predict_proba(feature_frame)
+        else:
+            output = estimator.predict(feature_frame)
+
+        if isinstance(output, list):
+            arrays = [np.asarray(item) for item in output]
+            if arrays and all(arr.ndim == 2 for arr in arrays):
+                return np.concatenate(arrays, axis=1)
+            return np.asarray(output)
+
+        return np.asarray(output)
+
+    def explain_single_estimator(estimator, feature_frame):
+        model_type = type(estimator).__name__
+        explained = None
+        if "XGB" in model_type or "RandomForest" in model_type:
+            try:
+                explainer = shap.TreeExplainer(estimator)
+                explained = explainer(feature_frame)
+            except Exception:
+                explained = None
+
+        if explained is None:
+            background = shap.sample(feature_frame, min(100, len(feature_frame)))
+            explainer = shap.KernelExplainer(lambda data: safe_model_output(estimator, data), background)
+            explained = explainer(feature_frame)
+
+        values = np.array(getattr(explained, "values", explained))
+        if values.ndim == 3:
+            values = np.abs(values).mean(axis=2)
+        return values
+
+    if isinstance(inner_model, (MultiOutputClassifier, OneVsRestClassifier)):
+        if not hasattr(inner_model, "estimators_") or len(inner_model.estimators_) == 0:
+            raise ValueError("Wrapped classifier has no fitted sub-estimators for SHAP inference.")
+
+        per_target_values = []
+        for estimator in inner_model.estimators_:
+            per_target_values.append(explain_single_estimator(estimator, X_selected))
+
+        # Aggregate target-specific SHAP values into a single (samples, features) matrix.
+        stacked_values = np.stack(per_target_values, axis=2)
+        aggregated_values = np.abs(stacked_values).mean(axis=2)
+        return shap.Explanation(
+            values=aggregated_values,
+            data=X_selected.to_numpy(),
+            feature_names=X_selected.columns.tolist(),
+        )
+
+    single_values = explain_single_estimator(inner_model, X_selected)
+    return shap.Explanation(
+        values=single_values,
+        data=X_selected.to_numpy(),
+        feature_names=X_selected.columns.tolist(),
+    )
 
 def main(DATASET_PATH, EXPERIMENT_NAME):
     # Example usage

@@ -1,0 +1,185 @@
+{
+  "orctree_breast": {
+    "0": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 475.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 6.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    }
+  },
+  "orctree_idc": {
+    "0": {
+      "precision": 0.9807692307692307,
+      "recall": 0.9902912621359223,
+      "f1-score": 0.9855072463768116,
+      "support": 103.0
+    },
+    "1": {
+      "precision": 0.9973474801061007,
+      "recall": 0.9947089947089947,
+      "f1-score": 0.9960264900662251,
+      "support": 378.0
+    },
+    "accuracy": 0.9937629937629938,
+    "macro avg": {
+      "precision": 0.9890583554376657,
+      "recall": 0.9925001284224585,
+      "f1-score": 0.9907668682215184,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 0.9937974599778313,
+      "recall": 0.9937629937629938,
+      "f1-score": 0.9937739285277437,
+      "support": 481.0
+    }
+  },
+  "orctree_ilc": {
+    "0": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 442.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 39.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    }
+  },
+  "orctree_immc": {
+    "0": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 472.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 9.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    }
+  },
+  "orctree_mbc": {
+    "0": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    }
+  },
+  "orctree_mdlc": {
+    "0": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 436.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 45.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 481.0
+    }
+  },
+  "orctree_nan": {
+    "0": {
+      "precision": 0.9937369519832986,
+      "recall": 0.9979035639412998,
+      "f1-score": 0.99581589958159,
+      "support": 477.0
+    },
+    "1": {
+      "precision": 0.5,
+      "recall": 0.25,
+      "f1-score": 0.3333333333333333,
+      "support": 4.0
+    },
+    "accuracy": 0.9916839916839917,
+    "macro avg": {
+      "precision": 0.7468684759916493,
+      "recall": 0.6239517819706499,
+      "f1-score": 0.6645746164574616,
+      "support": 481.0
+    },
+    "weighted avg": {
+      "precision": 0.9896310313846849,
+      "recall": 0.9916839916839917,
+      "f1-score": 0.990306689051459,
+      "support": 481.0
+    }
+  }
+}

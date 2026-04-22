@@ -1,0 +1,11 @@
+{
+  "best_params": {
+    "model__max_depth": 10,
+    "model__min_samples_leaf": 2,
+    "model__min_samples_split": 5,
+    "model__n_estimators": 200
+  },
+  "best_cv_score": 0.2354546150985793,
+  "scoring": "r2",
+  "cv_splits": 5
+}

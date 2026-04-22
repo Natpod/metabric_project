@@ -2,7 +2,7 @@ import sklearn.preprocessing as preprocessing
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import accuracy_score, classification_report, f1_score, mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import GridSearchCV, StratifiedKFold, train_test_split
+from sklearn.model_selection import GridSearchCV, KFold, StratifiedKFold, train_test_split
 from sklearn.multiclass import OneVsRestClassifier
 from sklearn.multioutput import MultiOutputClassifier
 from sklearn.pipeline import Pipeline
@@ -216,7 +216,12 @@ def build_stratification_labels(y, task_type):
         ).astype(str)
 
     if isinstance(y, pd.DataFrame):
-        numeric_df = y.apply(pd.to_numeric, errors='ignore')
+        numeric_df = y.copy()
+        for col in numeric_df.columns:
+            try:
+                numeric_df[col] = pd.to_numeric(numeric_df[col])
+            except (TypeError, ValueError):
+                continue
         if task_type == 'multiclass_classification' and set(numeric_df.dtypes.astype(str)).issubset({'int64', 'float64', 'uint8', 'bool', 'boolean'}):
             return numeric_df.astype(float).idxmax(axis=1).astype(str)
         if task_type == 'multilabel_classification':
@@ -227,7 +232,7 @@ def build_stratification_labels(y, task_type):
 
 
 def build_inner_cv_splits(y, task_type, max_splits=DEFAULT_INNER_CV_SPLITS):
-    """Build explicit stratified CV splits from the outer-train target only."""
+    """Build explicit inner CV splits from the outer-train target only."""
     strata = pd.Series(build_stratification_labels(y, task_type)).reset_index(drop=True)
     class_counts = strata.value_counts()
     if class_counts.empty:
@@ -235,14 +240,24 @@ def build_inner_cv_splits(y, task_type, max_splits=DEFAULT_INNER_CV_SPLITS):
 
     n_splits = min(max_splits, int(class_counts.min()))
     if n_splits < 2:
-        raise ValueError(
-            "Inner stratified CV requires at least two samples in every stratum. "
+        fallback_splits = min(max_splits, len(strata))
+        if fallback_splits < 2:
+            raise ValueError(
+                "Inner CV requires at least two outer-train samples. "
+                f"Observed strata counts: {class_counts.to_dict()}"
+            )
+
+        log_progress(
+            "Falling back to non-stratified inner KFold because some strata have fewer than two samples. "
             f"Observed strata counts: {class_counts.to_dict()}"
         )
+        splitter = KFold(n_splits=fallback_splits, shuffle=True, random_state=42)
+        placeholder_X = np.zeros(len(strata))
+        return list(splitter.split(placeholder_X)), fallback_splits, class_counts.to_dict(), 'kfold'
 
     splitter = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
     placeholder_X = np.zeros(len(strata))
-    return list(splitter.split(placeholder_X, strata)), n_splits, class_counts.to_dict()
+    return list(splitter.split(placeholder_X, strata)), n_splits, class_counts.to_dict(), 'stratified_cv'
 
 
 def encode_targets_for_outer_split(y_train, y_test, task_type):
@@ -251,6 +266,17 @@ def encode_targets_for_outer_split(y_train, y_test, task_type):
         return y_train.copy(), y_test.copy(), {}
 
     if isinstance(y_train, pd.DataFrame):
+        if task_type in {'multiclass_classification'}:
+            numeric_like_dtypes = {'int64', 'float64', 'uint8', 'bool', 'boolean'}
+            train_dtypes = set(y_train.dtypes.astype(str))
+            test_dtypes = set(y_test.dtypes.astype(str))
+            if train_dtypes.issubset(numeric_like_dtypes) and test_dtypes.issubset(numeric_like_dtypes):
+                return (
+                    y_train.fillna(0).astype(int).copy(),
+                    y_test.fillna(0).astype(int).copy(),
+                    {},
+                )
+
         y_train_encoded = y_train.copy()
         y_test_encoded = y_test.copy()
         target_encoders = {}
@@ -339,19 +365,57 @@ def apply_train_only_batch_correction(X_train, train_cohorts, gene_expr_cols):
     return corrected, batch_metadata
 
 
+def clean_numeric_string_series(series):
+    """Normalize list-like numeric strings such as ['7.4E-3'] into plain numeric tokens."""
+    return (
+        series
+        .astype('string')
+        .str.replace('[', '', regex=False)
+        .str.replace(']', '', regex=False)
+        .str.replace("'", '', regex=False)
+        .str.replace('"', '', regex=False)
+        .str.strip()
+    )
+
+
+def unwrap_singleton_sequence_value(value):
+    """Unwrap scalar values stored inside singleton list/tuple/ndarray containers."""
+    if isinstance(value, np.ndarray):
+        if value.size == 0:
+            return np.nan
+        if value.size == 1:
+            return value.reshape(-1)[0]
+        return value.tolist()
+
+    if isinstance(value, (list, tuple)):
+        if len(value) == 0:
+            return np.nan
+        if len(value) == 1:
+            return value[0]
+        return value
+
+    return value
+
+
+def coerce_mixed_numeric_series(series):
+    """Coerce mixed scalar/list-like/string values (including scientific notation) to numeric."""
+    flattened = series.map(unwrap_singleton_sequence_value)
+    cleaned = clean_numeric_string_series(flattened)
+    converted = pd.to_numeric(cleaned, errors='coerce')
+    if converted.notna().any():
+        return converted.fillna(0.0)
+
+    # Fallback: extract the first scientific-notation-compatible token from complex strings.
+    extracted = cleaned.str.extract(r'([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)')[0]
+    return pd.to_numeric(extracted, errors='coerce').fillna(0.0)
+
+
 def coerce_gene_expression_columns(df, gene_expr_cols):
     """Parse gene-expression columns as numeric, including bracketed scientific-notation strings."""
     for col in gene_expr_cols:
         if col not in df.columns:
             continue
-        cleaned = (
-            df[col]
-            .astype('string')
-            .str.replace('[', '', regex=False)
-            .str.replace(']', '', regex=False)
-            .str.strip()
-        )
-        df[col] = pd.to_numeric(cleaned, errors='coerce')
+        df[col] = coerce_mixed_numeric_series(df[col])
 
     return df
 
@@ -559,9 +623,26 @@ def build_model_selection_pipeline(estimator, param_grid, variance_threshold=DEF
 def get_variance_selected_frame(best_estimator, X):
     """Return the feature matrix after the fitted variance selector step."""
     variance_step = best_estimator.named_steps['variance']
-    selected_array = variance_step.transform(X)
-    selected_feature_names = X.columns[variance_step.get_support()].tolist()
+    numeric_X = coerce_shap_feature_frame(X)
+    selected_array = variance_step.transform(numeric_X)
+    selected_feature_names = numeric_X.columns[variance_step.get_support()].tolist()
     return pd.DataFrame(selected_array, columns=selected_feature_names, index=X.index)
+
+
+def coerce_shap_feature_frame(X):
+    """Convert SHAP feature inputs to numeric values, including bracketed sci-notation strings."""
+    coerced = X.copy()
+    for col in coerced.columns:
+        if pd.api.types.is_numeric_dtype(coerced[col]) and not pd.api.types.is_object_dtype(coerced[col]):
+            continue
+
+        coerced[col] = coerce_mixed_numeric_series(coerced[col])
+
+    for col in coerced.columns:
+        if not pd.api.types.is_numeric_dtype(coerced[col]) or pd.api.types.is_object_dtype(coerced[col]):
+            coerced[col] = coerce_mixed_numeric_series(coerced[col])
+
+    return coerced
 
 
 def resolve_shap_target_estimators(model, target_names=None):
@@ -639,7 +720,16 @@ def log_pipeline_shap_artifacts(best_estimator, X, artifact_key, target_names=No
                 }
                 mlflow.log_dict(metadata, f'{target_artifact_key}/metadata.json')
     except Exception as exc:
+        object_columns = [col for col in X.columns if pd.api.types.is_object_dtype(X[col])]
+        preview_payload = {
+            col: X[col].head(3).astype('string').tolist()
+            for col in object_columns[:5]
+        }
         log_progress(f"Skipping SHAP logging for {artifact_key}: {exc}")
+        if object_columns:
+            log_progress(
+                f"SHAP debug context ({artifact_key}) object_columns={object_columns[:10]} preview={preview_payload}"
+            )
         if mlflow.active_run() is not None:
             mlflow.log_param(f'{artifact_key}_shap_skipped', True)
 
@@ -691,7 +781,7 @@ def run_leave_one_cohort_out_experiment(
             cohort_column=cohort_column,
             task_type=task_type,
         )
-        cv_splits, cv_count, stratification_counts = build_inner_cv_splits(y_train, task_type)
+        cv_splits, cv_count, stratification_counts, inner_strategy = build_inner_cv_splits(y_train, task_type)
 
         end_active_mlflow_run()
         try:
@@ -703,11 +793,12 @@ def run_leave_one_cohort_out_experiment(
                     'target_columns': ','.join(target_columns),
                     'dataset_path': dataset_path,
                     'outer_strategy': 'leave_one_cohort_out',
-                    'inner_strategy': 'stratified_cv',
+                    'inner_strategy': inner_strategy,
                     'held_out_cohort': cohort_label,
                 })
                 mlflow.log_param('held_out_cohort', cohort_label)
                 mlflow.log_param('inner_cv_splits', cv_count)
+                mlflow.log_param('inner_cv_strategy', inner_strategy)
                 mlflow.log_dict(stratification_counts, 'model_selection/inner_strata_counts.json')
                 log_preprocessing_artifacts(preprocessing_artifacts)
                 _, training_summary = training_fn(
@@ -1534,29 +1625,29 @@ def main(DATASET_PATH, id_column, non_gene_cols, therapeutic_target_columns, orc
     df = df[(df['death_from_cancer'] != 'Died of Other Causes')| (df["overall_survival"]==1)] # ensure we are modeling breast cancer specific survival and not overall survival, which would be a different use case with different target variable definition and modeling approach
     # Run preprocessing
     # normalize therapeutic targets for true multi-target classification
-    # for col in therapeutic_target_columns:
-    #     if col in df.columns and col != "type_of_breast_surgery":
-    #         df[col] = df[col].astype(str).str.strip().str.lower().map(
-    #             lambda x: pd.NA if pd.isna(x) else x in {'yes', 'positive', '+', '1'}
-    #         ).astype('boolean')
-    # df_surgery = pd.get_dummies(df["type_of_breast_surgery"], prefix="breast_surgery")
-    # df = pd.concat([df, df_surgery], axis=1).drop(columns=["type_of_breast_surgery"])
-    # therapeutic_final_targets = list(df_surgery.columns) + [col for col in therapeutic_target_columns if col != "type_of_breast_surgery"]
-    # run_leave_one_cohort_out_experiment(
-    #     df=df,
-    #     target_col=therapeutic_final_targets,
-    #     task_type='multilabel_classification',
-    #     experiment_name='METABRIC_UC_Plausible_Therapy',
-    #     run_name_prefix='therapy_multilabel',
-    #     training_fn=run_training_multilabel_classifier,
-    #     dataset_path=DATASET_PATH,
-    #     gene_expr_cols=gene_cols,
-    #     has_duplicates=has_duplicates,
-    #     boolean_cast_columns=boolean_cast_columns,
-    #     outlier_columns=outlier_columns,
-    #     high_cardinality_columns=high_cardinality_columns,
-    #     id_column=id_column,
-    # )
+    for col in therapeutic_target_columns:
+        if col in df.columns and col != "type_of_breast_surgery":
+            df[col] = df[col].astype(str).str.strip().str.lower().map(
+                lambda x: pd.NA if pd.isna(x) else x in {'yes', 'positive', '+', '1'}
+            ).astype('boolean')
+    df_surgery = pd.get_dummies(df["type_of_breast_surgery"], prefix="breast_surgery")
+    df = pd.concat([df, df_surgery], axis=1).drop(columns=["type_of_breast_surgery"])
+    therapeutic_final_targets = list(df_surgery.columns) + [col for col in therapeutic_target_columns if col != "type_of_breast_surgery"]
+    run_leave_one_cohort_out_experiment(
+        df=df,
+        target_col=therapeutic_final_targets,
+        task_type='multilabel_classification',
+        experiment_name='METABRIC_UC_Plausible_Therapy',
+        run_name_prefix='therapy_multilabel',
+        training_fn=run_training_multilabel_classifier,
+        dataset_path=DATASET_PATH,
+        gene_expr_cols=gene_cols,
+        has_duplicates=has_duplicates,
+        boolean_cast_columns=boolean_cast_columns,
+        outlier_columns=outlier_columns,
+        high_cardinality_columns=high_cardinality_columns,
+        id_column=id_column,
+    )
 
     
     ###################
@@ -1585,8 +1676,8 @@ def main(DATASET_PATH, id_column, non_gene_cols, therapeutic_target_columns, orc
     ###################
     # USE CASE 3 - CLASSIFIER ORCTREE CODES DIAGNOSIS
     ###################
-    # Load dataset
-    df = pd.read_csv(DATASET_PATH)
+    # Load dataset, delete detailed and high-level cancer type columns to ensure the model is focused on learning from the gene expression and other features to predict the orctree diagnosis categories, which are more granular and clinically relevant than the broader cancer type labels that may be easier to predict based on non-gene features
+    df = pd.read_csv(DATASET_PATH).drop(['cancer_type_detailed', 'cancer_type'], axis=1)
     # normalize orctree target for multi-class classification
     end_active_mlflow_run()
     mlflow.set_experiment("METABRIC_UC_Plausible_Diagnosis")

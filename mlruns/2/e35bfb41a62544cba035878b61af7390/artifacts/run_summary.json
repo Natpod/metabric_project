@@ -1,0 +1,30 @@
+{
+  "run_name": "survival_regression_heldout_5",
+  "task_type": "regression",
+  "dataset_path": "C:\\Users\\User\\metabric_project\\data\\FCS_ml_test_input_data_rna_mutation.csv",
+  "row_count": 1103,
+  "target_columns": [
+    "overall_survival_months"
+  ],
+  "preprocessing": {
+    "categorical_feature_count": 18,
+    "numeric_feature_count": 588,
+    "encoded_feature_count": 588,
+    "split_sizes": {
+      "train": 991,
+      "validation": 0,
+      "test": 112
+    }
+  },
+  "training": {
+    "best_model_name": "random_forest",
+    "best_cv_score": 0.27231256363918777,
+    "scoring": "r2",
+    "validation_metrics": {},
+    "test_metrics": {
+      "r2": 0.11017576609695612,
+      "mae": 51.945776550733946,
+      "rmse": 64.10090149683757
+    }
+  }
+}

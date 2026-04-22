@@ -1,0 +1,5 @@
+{
+  "target_name": "breast_surgery_BREAST CONSERVING",
+  "wrapper_type": "OneVsRestClassifier",
+  "explained_submodel_index": 0
+}

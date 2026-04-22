@@ -1,0 +1,22 @@
+{
+  "random_forest": {
+    "best_params": {
+      "model__estimator__class_weight": null,
+      "model__estimator__max_depth": 10,
+      "model__estimator__min_samples_leaf": 2,
+      "model__estimator__min_samples_split": 2,
+      "model__estimator__n_estimators": 200
+    },
+    "best_cv_score": 0.7214457649268969
+  },
+  "xgboost": {
+    "best_params": {
+      "model__estimator__colsample_bytree": 1.0,
+      "model__estimator__learning_rate": 0.05,
+      "model__estimator__max_depth": 3,
+      "model__estimator__n_estimators": 100,
+      "model__estimator__subsample": 0.8
+    },
+    "best_cv_score": 0.7243622705037799
+  }
+}

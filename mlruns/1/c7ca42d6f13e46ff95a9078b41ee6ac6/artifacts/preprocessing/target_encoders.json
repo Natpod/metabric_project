@@ -1,0 +1,22 @@
+{
+  "breast_surgery_BREAST CONSERVING": [
+    "False",
+    "True"
+  ],
+  "breast_surgery_MASTECTOMY": [
+    "False",
+    "True"
+  ],
+  "chemotherapy": [
+    "False",
+    "True"
+  ],
+  "hormone_therapy": [
+    "False",
+    "True"
+  ],
+  "radio_therapy": [
+    "False",
+    "True"
+  ]
+}

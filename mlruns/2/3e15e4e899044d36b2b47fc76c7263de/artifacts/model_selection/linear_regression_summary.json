@@ -1,0 +1,6 @@
+{
+  "best_params": {},
+  "best_cv_score": -27.642670436725478,
+  "scoring": "r2",
+  "cv_splits": 5
+}

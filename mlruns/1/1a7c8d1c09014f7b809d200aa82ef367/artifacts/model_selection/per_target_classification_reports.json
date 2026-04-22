@@ -1,0 +1,137 @@
+{
+  "breast_surgery_BREAST CONSERVING": {
+    "0": {
+      "precision": 0.6594202898550725,
+      "recall": 0.6791044776119403,
+      "f1-score": 0.6691176470588235,
+      "support": 134.0
+    },
+    "1": {
+      "precision": 0.5520833333333334,
+      "recall": 0.53,
+      "f1-score": 0.5408163265306123,
+      "support": 100.0
+    },
+    "accuracy": 0.6153846153846154,
+    "macro avg": {
+      "precision": 0.6057518115942029,
+      "recall": 0.6045522388059701,
+      "f1-score": 0.6049669867947178,
+      "support": 234.0
+    },
+    "weighted avg": {
+      "precision": 0.6135497956150131,
+      "recall": 0.6153846153846154,
+      "f1-score": 0.6142880229014683,
+      "support": 234.0
+    }
+  },
+  "breast_surgery_MASTECTOMY": {
+    "0": {
+      "precision": 0.5511811023622047,
+      "recall": 0.7,
+      "f1-score": 0.6167400881057269,
+      "support": 100.0
+    },
+    "1": {
+      "precision": 0.719626168224299,
+      "recall": 0.5746268656716418,
+      "f1-score": 0.6390041493775933,
+      "support": 134.0
+    },
+    "accuracy": 0.6282051282051282,
+    "macro avg": {
+      "precision": 0.635403635293252,
+      "recall": 0.6373134328358209,
+      "f1-score": 0.62787211874166,
+      "support": 234.0
+    },
+    "weighted avg": {
+      "precision": 0.6476410973430622,
+      "recall": 0.6282051282051282,
+      "f1-score": 0.6294895932785052,
+      "support": 234.0
+    }
+  },
+  "chemotherapy": {
+    "0": {
+      "precision": 0.983957219251337,
+      "recall": 1.0,
+      "f1-score": 0.9919137466307277,
+      "support": 184.0
+    },
+    "1": {
+      "precision": 1.0,
+      "recall": 0.94,
+      "f1-score": 0.9690721649484536,
+      "support": 50.0
+    },
+    "accuracy": 0.9871794871794872,
+    "macro avg": {
+      "precision": 0.9919786096256684,
+      "recall": 0.97,
+      "f1-score": 0.9804929557895907,
+      "support": 234.0
+    },
+    "weighted avg": {
+      "precision": 0.9873851638557521,
+      "recall": 0.9871794871794872,
+      "f1-score": 0.987033066784088,
+      "support": 234.0
+    }
+  },
+  "hormone_therapy": {
+    "0": {
+      "precision": 0.8513513513513513,
+      "recall": 0.5384615384615384,
+      "f1-score": 0.6596858638743456,
+      "support": 117.0
+    },
+    "1": {
+      "precision": 0.6625,
+      "recall": 0.905982905982906,
+      "f1-score": 0.7653429602888087,
+      "support": 117.0
+    },
+    "accuracy": 0.7222222222222222,
+    "macro avg": {
+      "precision": 0.7569256756756757,
+      "recall": 0.7222222222222222,
+      "f1-score": 0.7125144120815772,
+      "support": 234.0
+    },
+    "weighted avg": {
+      "precision": 0.7569256756756757,
+      "recall": 0.7222222222222222,
+      "f1-score": 0.7125144120815771,
+      "support": 234.0
+    }
+  },
+  "radio_therapy": {
+    "0": {
+      "precision": 0.6,
+      "recall": 0.04477611940298507,
+      "f1-score": 0.08333333333333333,
+      "support": 67.0
+    },
+    "1": {
+      "precision": 0.7205240174672489,
+      "recall": 0.9880239520958084,
+      "f1-score": 0.8333333333333334,
+      "support": 167.0
+    },
+    "accuracy": 0.717948717948718,
+    "macro avg": {
+      "precision": 0.6602620087336244,
+      "recall": 0.5164000357493967,
+      "f1-score": 0.45833333333333337,
+      "support": 234.0
+    },
+    "weighted avg": {
+      "precision": 0.686015003918934,
+      "recall": 0.717948717948718,
+      "f1-score": 0.6185897435897437,
+      "support": 234.0
+    }
+  }
+}

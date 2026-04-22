@@ -1,0 +1,12 @@
+{
+  "best_params": {
+    "model__estimator__colsample_bytree": 1.0,
+    "model__estimator__learning_rate": 0.05,
+    "model__estimator__max_depth": 3,
+    "model__estimator__n_estimators": 200,
+    "model__estimator__subsample": 1.0
+  },
+  "best_cv_score": 0.9910169767484032,
+  "scoring": "f1_weighted",
+  "cv_splits": 5
+}

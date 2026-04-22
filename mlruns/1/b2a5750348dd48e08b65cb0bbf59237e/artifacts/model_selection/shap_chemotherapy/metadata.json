@@ -1,0 +1,5 @@
+{
+  "target_name": "chemotherapy",
+  "wrapper_type": "OneVsRestClassifier",
+  "explained_submodel_index": 2
+}

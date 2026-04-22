@@ -1,0 +1,6 @@
+param.held_out_cohort	param.selected_model	metric.orctree_breast_accuracy	metric.orctree_breast_f1_weighted	metric.orctree_idc_accuracy	metric.orctree_idc_f1_weighted	metric.orctree_ilc_accuracy	metric.orctree_ilc_f1_weighted	metric.orctree_immc_accuracy	metric.orctree_immc_f1_weighted	metric.orctree_mbc_accuracy	metric.orctree_mbc_f1_weighted	metric.orctree_mdlc_accuracy	metric.orctree_mdlc_f1_weighted	metric.orctree_nan_accuracy	metric.orctree_nan_f1_weighted	metric.test_subset_accuracy
+5.0	xgboost	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	
+4.0	xgboost	1.0	1.0	0.9957627118644068	0.9957881596695868	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	0.9788135593220338	0.9683337567596996	
+3.0	xgboost	1.0	1.0	0.9918256130790192	0.9918645997430174	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	0.9904632152588556	0.9857176693951922	
+2.0	xgboost	1.0	1.0	0.993006993006993	0.99303921675417	1.0	1.0	1.0	1.0	0.9965034965034965	0.9947583064921068	1.0	1.0	0.9965034965034965	0.9982486865148862	
+1.0	xgboost	1.0	1.0	0.9937629937629938	0.9937739285277436	1.0	1.0	1.0	1.0	1.0	1.0	1.0	1.0	0.9916839916839916	0.990306689051459	

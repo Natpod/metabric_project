@@ -1,0 +1,87 @@
+{
+  "run_name": "diagnosis_multiclass_heldout_1",
+  "task_type": "multiclass_classification",
+  "dataset_path": "C:\\Users\\User\\metabric_project\\data\\FCS_ml_test_input_data_rna_mutation.csv",
+  "row_count": 1904,
+  "target_columns": [
+    "orctree_breast",
+    "orctree_idc",
+    "orctree_ilc",
+    "orctree_immc",
+    "orctree_mbc",
+    "orctree_mdlc",
+    "orctree_nan"
+  ],
+  "preprocessing": {
+    "categorical_feature_count": 15,
+    "numeric_feature_count": 573,
+    "encoded_feature_count": 573,
+    "split_sizes": {
+      "train": 1423,
+      "validation": 0,
+      "test": 481
+    }
+  },
+  "training": {
+    "best_model_name": "xgboost",
+    "best_cv_score": 0.9851623255998365,
+    "scoring": "f1_weighted",
+    "candidate_models": {
+      "random_forest": {
+        "best_params": {
+          "model__estimator__class_weight": null,
+          "model__estimator__max_depth": null,
+          "model__estimator__min_samples_leaf": 1,
+          "model__estimator__min_samples_split": 2,
+          "model__estimator__n_estimators": 100
+        },
+        "best_cv_score": 0.9661902647560046
+      },
+      "xgboost": {
+        "best_params": {
+          "model__estimator__colsample_bytree": 1.0,
+          "model__estimator__learning_rate": 0.05,
+          "model__estimator__max_depth": 3,
+          "model__estimator__n_estimators": 200,
+          "model__estimator__subsample": 1.0
+        },
+        "best_cv_score": 0.9851623255998365
+      }
+    },
+    "validation_metrics": {},
+    "test_metrics": {
+      "exact_match_accuracy": 0.9896049896049897,
+      "mean_target_f1_weighted": 0.9977258025113146,
+      "per_target_metrics": {
+        "orctree_breast": {
+          "accuracy": 1.0,
+          "f1_weighted": 1.0
+        },
+        "orctree_idc": {
+          "accuracy": 0.9937629937629938,
+          "f1_weighted": 0.9937739285277437
+        },
+        "orctree_ilc": {
+          "accuracy": 1.0,
+          "f1_weighted": 1.0
+        },
+        "orctree_immc": {
+          "accuracy": 1.0,
+          "f1_weighted": 1.0
+        },
+        "orctree_mbc": {
+          "accuracy": 1.0,
+          "f1_weighted": 1.0
+        },
+        "orctree_mdlc": {
+          "accuracy": 1.0,
+          "f1_weighted": 1.0
+        },
+        "orctree_nan": {
+          "accuracy": 0.9916839916839917,
+          "f1_weighted": 0.990306689051459
+        }
+      }
+    }
+  }
+}
